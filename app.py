@@ -2,17 +2,42 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
+
+import pandas as pd
 import streamlit as st
 
 from ods import (
     ChartSuggestion,
     DatasetLoadError,
+    INTENTS,
     build_chart_data,
     build_markdown_report,
+    infer_column_semantics,
     load_dataset,
     profile_dataset,
+    roles_from_mapping,
     suggest_dashboard,
 )
+
+
+ROLE_LABELS = {
+    "identifier": "Identifier / ID",
+    "numeric": "Numeric measure",
+    "categorical": "Category",
+    "datetime": "Date / time",
+    "text": "Free text",
+    "ignore": "Ignore",
+}
+ROLE_VALUES = {label: role for role, label in ROLE_LABELS.items()}
+AGGREGATIONS = {
+    "Average": "mean",
+    "Median": "median",
+    "Total": "sum",
+    "Count": "count",
+    "Minimum": "min",
+    "Maximum": "max",
+}
 
 
 def format_bytes(size: int) -> str:
@@ -38,6 +63,30 @@ def render_chart(dataframe, suggestion: ChartSuggestion) -> None:
     else:
         value_column = suggestion.y or "count"
         st.bar_chart(chart_data.set_index(suggestion.x)[value_column], height=300)
+
+    st.caption(f"Recommendation confidence: {suggestion.confidence:.0%}")
+    with st.expander("Verify calculation"):
+        st.dataframe(chart_data, use_container_width=True, hide_index=True)
+        st.caption(
+            f"This is the exact {len(chart_data):,}-row summary used by the chart. "
+            "No hidden model or paid API is involved."
+        )
+
+
+def build_role_review(dataframe: pd.DataFrame) -> pd.DataFrame:
+    """Create the editable semantic layer shown above the dashboard."""
+    return pd.DataFrame(
+        [
+            {
+                "Column": semantic.column,
+                "Role": ROLE_LABELS[semantic.role],
+                "Format": semantic.display_format,
+                "Confidence": f"{semantic.confidence:.0%}",
+                "Why ODS chose it": semantic.reason,
+            }
+            for semantic in infer_column_semantics(dataframe)
+        ]
+    )
 
 
 st.set_page_config(
@@ -80,7 +129,8 @@ if uploaded_file is None:
     st.stop()
 
 try:
-    dataframe = load_dataset(uploaded_file.name, uploaded_file.getvalue())
+    uploaded_bytes = uploaded_file.getvalue()
+    dataframe = load_dataset(uploaded_file.name, uploaded_bytes)
     profile = profile_dataset(dataframe)
 except DatasetLoadError as exc:
     st.error(str(exc))
@@ -100,7 +150,7 @@ for container, (label, value) in zip(metric_columns, metrics, strict=True):
     container.metric(label, value)
 
 overview_tab, dashboard_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
-    ["Data preview", "Auto dashboard", "Column profile", "Quality findings", "Statistics"]
+    ["Data preview", "Smart dashboard", "Column profile", "Quality findings", "Statistics"]
 )
 
 with overview_tab:
@@ -109,14 +159,75 @@ with overview_tab:
     st.caption("Showing up to the first 100 rows.")
 
 with dashboard_tab:
-    st.subheader("Automatic dashboard")
+    st.subheader("Smart guided dashboard")
     st.caption(
-        "ODS selects up to four standard charts using column types and transparent rules. "
-        "Identifier columns are excluded from numeric measures."
+        "ODS recommends a small dashboard, but you stay in control. Review the inferred roles, "
+        "choose the question, and verify the exact calculation behind every chart."
     )
-    suggestions = suggest_dashboard(dataframe)
+
+    role_review = build_role_review(dataframe)
+    low_confidence = any(semantic.confidence < 0.9 for semantic in infer_column_semantics(dataframe))
+    with st.expander("1. Review column roles", expanded=low_confidence):
+        st.caption(
+            "Correct anything ODS misunderstood. IDs are excluded from measures, free text is not charted, "
+            "and ignored columns are left out entirely."
+        )
+        reviewed_table = st.data_editor(
+            role_review,
+            use_container_width=True,
+            hide_index=True,
+            disabled=["Column", "Format", "Confidence", "Why ODS chose it"],
+            column_config={
+                "Role": st.column_config.SelectboxColumn(
+                    "Role",
+                    options=list(ROLE_LABELS.values()),
+                    required=True,
+                ),
+                "Why ODS chose it": st.column_config.TextColumn(width="large"),
+            },
+            key=f"role-review-{sha256(uploaded_bytes).hexdigest()[:12]}",
+        )
+
+    st.markdown("#### 2. Choose the question")
+    controls = st.columns([2, 1, 1, 1])
+    intent = controls[0].selectbox(
+        "Dashboard goal",
+        INTENTS,
+        help="This determines which chart families ODS recommends.",
+    )
+    aggregation_label = controls[1].selectbox(
+        "Aggregation",
+        list(AGGREGATIONS),
+        help="Used for category comparisons and time trends.",
+    )
+    date_grain = controls[2].selectbox(
+        "Date grain",
+        ["Day", "Week", "Month", "Quarter", "Year"],
+        index=2,
+        help="Used when a chart groups records over time.",
+    )
+    chart_count = controls[3].slider("Charts", min_value=1, max_value=4, value=4)
+
+    role_mapping = {
+        str(row["Column"]): ROLE_VALUES[str(row["Role"])]
+        for row in reviewed_table.to_dict(orient="records")
+    }
+    reviewed_roles = roles_from_mapping(dataframe, role_mapping)
+    suggestions = suggest_dashboard(
+        dataframe,
+        max_charts=chart_count,
+        roles=reviewed_roles,
+        intent=intent,
+        aggregation=AGGREGATIONS[aggregation_label],
+        date_grain=date_grain.lower(),
+    )
+
+    st.markdown("#### 3. Recommended dashboard")
     if not suggestions:
-        st.info("ODS could not find enough variation to recommend a chart for this dataset.")
+        st.info(
+            "ODS could not make a safe recommendation for this goal with the reviewed roles. "
+            "Try another goal or correct a column role above."
+        )
     dashboard_columns = st.columns(2)
     for index, suggestion in enumerate(suggestions):
         with dashboard_columns[index % 2]:
