@@ -7,9 +7,9 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 
 **[Try the live demo →](https://open-data-scientist-omar.streamlit.app)**
 
-## Milestone 1: Data Profile + Quality Report
+## Current capabilities
 
-The first working milestone includes:
+### Milestone 1: Data Profile + Quality Report
 
 - CSV and Excel uploads
 - Dataset dimensions, memory use, missing cells, and duplicate counts
@@ -19,6 +19,14 @@ The first working milestone includes:
 - Explainable 0–100 quality score
 - Downloadable Markdown quality report
 - A polished Streamlit interface
+
+### Milestone 2: Automatic Dashboard Generator
+
+- Infers numeric, categorical, date, and identifier columns
+- Generates up to four useful charts instead of overwhelming the user
+- Creates category counts, numeric distributions, time trends, missingness charts, averages by category, and scatterplots when appropriate
+- Excludes likely identifier columns from numeric measures
+- Explains why every chart was selected
 
 ## Quick start
 
@@ -41,6 +49,7 @@ open-data-scientist/
 ├── ods/
 │   ├── loader.py              # CSV and Excel ingestion
 │   ├── profiler.py            # Profiling and quality rules
+│   ├── dashboard.py           # Chart inference and preparation
 │   └── reporting.py           # Downloadable report generation
 ├── tests/test_profiler.py     # Core unit tests
 ├── examples/                  # Safe sample data
@@ -59,10 +68,11 @@ python -m unittest discover -s tests -v
 ## Roadmap
 
 - [x] Milestone 1 — Upload, profile, and quality report
-- [ ] Milestone 2 — Automated analysis-question planner
-- [ ] Milestone 3 — Pandas/DuckDB analysis engine and charts
-- [ ] Milestone 4 — Optional local LLM and agent activity log
-- [ ] Milestone 5 — CLI, Docker image, demo, and contributor documentation
+- [x] Milestone 2 — Automatic dashboard generator
+- [ ] Milestone 3 — Visual SQL query builder with DuckDB
+- [ ] Milestone 4 — SQL explanation and optimization assistant
+- [ ] Milestone 5 — Optional local LLM and agent activity log
+- [ ] Milestone 6 — CLI, Docker image, demo, and contributor documentation
 
 ## Privacy
 
