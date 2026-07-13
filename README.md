@@ -1,6 +1,11 @@
 # Open Data Scientist (ODS)
 
+[![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
+[![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
+
 Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable data profiles, quality findings, statistics, and downloadable reports—without a paid API.
+
+**[Try the live demo →](https://open-data-scientist-omar.streamlit.app)**
 
 ## Milestone 1: Data Profile + Quality Report
 
@@ -66,4 +71,3 @@ ODS processes files inside the local Streamlit session. Milestone 1 does not sen
 ## License
 
 Copyright © 2026 Omar Al Jashmi. Released under the [MIT License](LICENSE).
-
