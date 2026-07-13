@@ -28,6 +28,16 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Excludes likely identifier columns from numeric measures
 - Explains why every chart was selected
 
+### Milestone 2.1: Smart Guided Dashboard
+
+- Shows the inferred analytical role, display format, confidence, and reason for every column
+- Lets the user correct identifiers, measures, categories, dates, free text, and ignored columns
+- Recommends charts for a selected goal: overview, trends, comparisons, distributions, relationships, or data quality
+- Makes aggregation and date grain explicit instead of guessing silently
+- Uses data-driven histogram bins and safer identifier/date detection
+- Shows the exact summary table behind every chart for verification
+- Runs entirely with local Python libraries and no paid API
+
 ## Quick start
 
 ```bash
@@ -69,6 +79,7 @@ python -m unittest discover -s tests -v
 
 - [x] Milestone 1 — Upload, profile, and quality report
 - [x] Milestone 2 — Automatic dashboard generator
+- [x] Milestone 2.1 — Guided semantic roles and auditable chart calculations
 - [ ] Milestone 3 — Visual SQL query builder with DuckDB
 - [ ] Milestone 4 — SQL explanation and optimization assistant
 - [ ] Milestone 5 — Optional local LLM and agent activity log
@@ -76,7 +87,7 @@ python -m unittest discover -s tests -v
 
 ## Privacy
 
-ODS processes files inside the local Streamlit session. Milestone 1 does not send data to a paid API or external model.
+ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model.
 
 ## License
 
