@@ -1,0 +1,8 @@
+customer_id,segment,monthly_spend,satisfaction_score,last_contact
+1001,Enterprise,4200,9,2026-06-02
+1002,Small Business,850,7,2026-06-11
+1003,Enterprise,5100,8,2026-06-09
+1004,Consumer,,6,2026-05-28
+1005,Small Business,920,,2026-06-13
+1005,Small Business,920,,2026-06-13
+
