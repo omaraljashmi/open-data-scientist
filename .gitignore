@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+.venv/
+venv/
+.env
+.DS_Store
+.streamlit/secrets.toml
+*.xlsx
+*.xls
+data/private/
+reports/
+
