@@ -1,10 +1,18 @@
-"""Streamlit interface for Open Data Scientist Milestone 1."""
+"""Streamlit interface for Open Data Scientist."""
 
 from __future__ import annotations
 
 import streamlit as st
 
-from ods import DatasetLoadError, build_markdown_report, load_dataset, profile_dataset
+from ods import (
+    ChartSuggestion,
+    DatasetLoadError,
+    build_chart_data,
+    build_markdown_report,
+    load_dataset,
+    profile_dataset,
+    suggest_dashboard,
+)
 
 
 def format_bytes(size: int) -> str:
@@ -14,6 +22,22 @@ def format_bytes(size: int) -> str:
             return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} B"
         value /= 1024
     return f"{value:.1f} GB"
+
+
+def render_chart(dataframe, suggestion: ChartSuggestion) -> None:
+    chart_data = build_chart_data(dataframe, suggestion)
+    if chart_data.empty:
+        st.info("There is not enough usable data to draw this chart.")
+        return
+
+    if suggestion.kind == "time_series":
+        value_column = suggestion.y or "count"
+        st.line_chart(chart_data.set_index(suggestion.x)[value_column], height=300)
+    elif suggestion.kind == "scatter" and suggestion.y:
+        st.scatter_chart(chart_data, x=suggestion.x, y=suggestion.y, height=300)
+    else:
+        value_column = suggestion.y or "count"
+        st.bar_chart(chart_data.set_index(suggestion.x)[value_column], height=300)
 
 
 st.set_page_config(
@@ -36,6 +60,7 @@ st.markdown(
     [data-testid="stMetric"] { border: 1px solid rgba(101, 209, 255, .17); border-radius: 14px; padding: 1rem; background: #0b1b2d; }
     .ods-score { border: 1px solid rgba(101, 209, 255, .22); border-radius: 16px; padding: 1.15rem; background: #0b1b2d; }
     .ods-score strong { color: #6ee7ff; font-size: 2rem; }
+    [data-testid="stVerticalBlockBorderWrapper"] { border-color: rgba(101, 209, 255, .17); background: #0b1b2d; }
     </style>
     <div class="ods-kicker">OPEN-SOURCE · LOCAL-FIRST · NO PAID API</div>
     <h1 class="ods-title">Turn raw files into a <span>clear data story.</span></h1>
@@ -74,14 +99,31 @@ metrics = [
 for container, (label, value) in zip(metric_columns, metrics, strict=True):
     container.metric(label, value)
 
-overview_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
-    ["Data preview", "Column profile", "Quality findings", "Statistics"]
+overview_tab, dashboard_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
+    ["Data preview", "Auto dashboard", "Column profile", "Quality findings", "Statistics"]
 )
 
 with overview_tab:
     st.subheader("Data preview")
     st.dataframe(dataframe.head(100), use_container_width=True, hide_index=True)
     st.caption("Showing up to the first 100 rows.")
+
+with dashboard_tab:
+    st.subheader("Automatic dashboard")
+    st.caption(
+        "ODS selects up to four standard charts using column types and transparent rules. "
+        "Identifier columns are excluded from numeric measures."
+    )
+    suggestions = suggest_dashboard(dataframe)
+    if not suggestions:
+        st.info("ODS could not find enough variation to recommend a chart for this dataset.")
+    dashboard_columns = st.columns(2)
+    for index, suggestion in enumerate(suggestions):
+        with dashboard_columns[index % 2]:
+            with st.container(border=True):
+                st.markdown(f"#### {suggestion.title}")
+                st.caption(suggestion.explanation)
+                render_chart(dataframe, suggestion)
 
 with columns_tab:
     st.subheader("Column profile")
