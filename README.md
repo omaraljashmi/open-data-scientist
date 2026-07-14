@@ -38,6 +38,17 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Shows the exact summary table behind every chart for verification
 - Runs entirely with local Python libraries and no paid API
 
+### Milestone 3: Visual SQL Query Builder
+
+- Builds row-level and grouped-summary queries with buttons instead of handwritten SQL
+- Lets the user choose output columns, up to three filters, grouping, a calculation, sorting, and a row limit
+- Supports counts, averages, medians, totals, minimums, and maximums
+- Shows the generated SQL so every result is understandable and reusable
+- Executes against the current upload in an isolated, in-memory DuckDB database
+- Quotes column names and binds filter values separately to prevent SQL injection
+- Previews results and downloads the complete result as CSV
+- Runs locally with open-source libraries and no paid API
+
 ## Quick start
 
 ```bash
@@ -60,8 +71,11 @@ open-data-scientist/
 │   ├── loader.py              # CSV and Excel ingestion
 │   ├── profiler.py            # Profiling and quality rules
 │   ├── dashboard.py           # Chart inference and preparation
+│   ├── query_builder.py       # Safe visual SQL generation and execution
 │   └── reporting.py           # Downloadable report generation
-├── tests/test_profiler.py     # Core unit tests
+├── tests/
+│   ├── test_profiler.py       # Profiling and dashboard tests
+│   └── test_query_builder.py  # Query generation and security tests
 ├── examples/                  # Safe sample data
 ├── requirements.txt
 └── LICENSE
@@ -80,7 +94,8 @@ python -m unittest discover -s tests -v
 - [x] Milestone 1 — Upload, profile, and quality report
 - [x] Milestone 2 — Automatic dashboard generator
 - [x] Milestone 2.1 — Guided semantic roles and auditable chart calculations
-- [ ] Milestone 3 — Visual SQL query builder with DuckDB
+- [x] Milestone 3 — Visual SQL query builder with DuckDB
+- [ ] Milestone 3.1 — OR filter groups and multi-file joins
 - [ ] Milestone 4 — SQL explanation and optimization assistant
 - [ ] Milestone 5 — Optional local LLM and agent activity log
 - [ ] Milestone 6 — CLI, Docker image, demo, and contributor documentation
