@@ -20,6 +20,8 @@ from ods import (
     INTENTS,
     QueryBuilderError,
     QuerySpec,
+    SqlCoachError,
+    analyze_query,
     build_chart_data,
     build_markdown_report,
     build_query,
@@ -352,6 +354,7 @@ def render_visual_sql_builder(
         query = None
 
     if query is not None:
+        st.session_state[f"sql-coach-latest-{dataset_key}"] = query.display_sql
         with st.expander("Generated SQL", expanded=False):
             st.code(query.display_sql, language="sql")
             st.caption(
@@ -393,6 +396,142 @@ def render_visual_sql_builder(
         )
     elif saved_result:
         st.info("The query controls changed. Run the query again to refresh the result.")
+
+
+def render_sql_coach(dataframe: pd.DataFrame, dataset_key: str) -> None:
+    """Render local query explanation, safety, and optimization guidance."""
+    st.subheader("SQL Coach")
+    st.caption(
+        "Understand a DuckDB query before running it. The coach parses the SQL locally, checks "
+        "correctness and performance risks, and asks DuckDB for the real physical plan."
+    )
+
+    latest_sql = st.session_state.get(f"sql-coach-latest-{dataset_key}")
+    source_options = ["Paste or edit SQL"]
+    if latest_sql:
+        source_options.insert(0, "Latest Visual SQL query")
+    source = st.radio(
+        "Query source",
+        source_options,
+        horizontal=True,
+        key=f"sql-coach-source-{dataset_key}",
+    )
+
+    if source == "Latest Visual SQL query":
+        sql = latest_sql
+        st.code(sql, language="sql")
+        st.caption("Change the Visual SQL controls to update this query automatically.")
+    else:
+        sql = st.text_area(
+            "DuckDB SQL",
+            value="SELECT *\nFROM uploaded_data\nLIMIT 100;",
+            height=220,
+            help="Use uploaded_data as the table name. Only one read-only query is accepted.",
+            key=f"sql-coach-input-{dataset_key}",
+        )
+
+    st.info(
+        "Safety boundary: only one read-only query against `uploaded_data` is analyzed. "
+        "The coach blocks writes, database commands, other tables, and external file readers."
+    )
+    signature = sha256(f"{dataset_key}:{sql}".encode()).hexdigest()
+    state_key = f"sql-coach-result-{dataset_key}"
+
+    if st.button(
+        "Analyze query",
+        type="primary",
+        key=f"sql-coach-run-{dataset_key}",
+    ):
+        try:
+            analysis = analyze_query(dataframe, sql)
+            st.session_state[state_key] = {
+                "signature": signature,
+                "analysis": analysis,
+            }
+        except SqlCoachError as exc:
+            st.session_state.pop(state_key, None)
+            st.error(str(exc))
+
+    saved = st.session_state.get(state_key)
+    if not saved:
+        return
+    if saved["signature"] != signature:
+        st.info("The SQL changed. Analyze it again to refresh the explanation and plan.")
+        return
+
+    analysis = saved["analysis"]
+    metric_columns = st.columns(3)
+    metric_columns[0].metric("Query score", f"{analysis.score}/100")
+    metric_columns[1].metric("Findings", f"{len(analysis.findings):,}")
+    metric_columns[2].metric("Plan operators", f"{len(analysis.plan_steps):,}")
+    st.success(
+        "Read-only validation passed. DuckDB planned this query without executing its result."
+    )
+
+    st.markdown("#### What the query does")
+    clause_columns = st.columns(2)
+    for index, clause in enumerate(analysis.clauses):
+        with clause_columns[index % 2]:
+            with st.container(border=True):
+                st.markdown(f"**{clause.clause}**")
+                st.write(clause.explanation)
+
+    st.markdown("#### Optimization and correctness review")
+    if not analysis.findings:
+        st.success("No rule-based risks were detected for this dataset and query shape.")
+    for finding in analysis.findings:
+        message = (
+            f"**{finding.title}** · {finding.category}\n\n"
+            f"{finding.detail}\n\n**Recommendation:** {finding.recommendation}"
+        )
+        if finding.severity == "high":
+            st.error(message)
+        elif finding.severity == "medium":
+            st.warning(message)
+        else:
+            st.info(message)
+
+    st.markdown("#### Clean DuckDB rewrite")
+    st.code(analysis.suggested_sql, language="sql")
+    if analysis.suggested_sql != analysis.formatted_sql:
+        st.caption(
+            "This rewrite expands an unambiguous top-level `SELECT *` using the current upload. "
+            "Other recommendations are not applied automatically when they could change results."
+        )
+    else:
+        st.caption(
+            "The query is formatted consistently. Recommendations that could change results remain "
+            "advice instead of being applied silently."
+        )
+    st.download_button(
+        "Download clean SQL",
+        data=analysis.suggested_sql.encode("utf-8"),
+        file_name="ods-clean-query.sql",
+        mime="text/plain",
+        key=f"sql-coach-download-{dataset_key}",
+    )
+
+    st.markdown("#### DuckDB physical plan")
+    if analysis.plan_steps:
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Operator": step.operator,
+                        "What it does": step.explanation,
+                    }
+                    for step in analysis.plan_steps
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+    with st.expander("Raw EXPLAIN plan"):
+        st.code(analysis.physical_plan, language="text")
+        st.caption(
+            "The plan is generated by DuckDB. Optimization findings are transparent local rules, "
+            "not guarantees from an AI model."
+        )
 
 
 st.set_page_config(
@@ -455,11 +594,12 @@ metrics = [
 for container, (label, value) in zip(metric_columns, metrics, strict=True):
     container.metric(label, value)
 
-overview_tab, dashboard_tab, query_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
+overview_tab, dashboard_tab, query_tab, coach_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
     [
         "Data preview",
         "Smart dashboard",
         "Visual SQL",
+        "SQL Coach",
         "Column profile",
         "Quality findings",
         "Statistics",
@@ -554,6 +694,12 @@ with query_tab:
         dataframe,
         sha256(uploaded_bytes).hexdigest()[:12],
         uploaded_file.name,
+    )
+
+with coach_tab:
+    render_sql_coach(
+        dataframe,
+        sha256(uploaded_bytes).hexdigest()[:12],
     )
 
 with columns_tab:
