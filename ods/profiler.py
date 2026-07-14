@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import pandas as pd
+from pandas.api.types import is_object_dtype, is_string_dtype
 
 
 @dataclass(frozen=True)
@@ -62,8 +63,9 @@ def _profile_columns(df: pd.DataFrame) -> pd.DataFrame:
     row_count = len(df)
     for name in df.columns:
         series = df[name]
-        missing_count = int(series.isna().sum())
-        non_null = series.dropna()
+        missing_mask = _missing_mask(series)
+        missing_count = int(missing_mask.sum())
+        non_null = series[~missing_mask]
         examples = [str(value)[:60] for value in non_null.unique()[:3]]
         rows.append(
             {
@@ -76,6 +78,17 @@ def _profile_columns(df: pd.DataFrame) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def _missing_mask(series: pd.Series) -> pd.Series:
+    """Count nulls and whitespace-only text consistently as missing."""
+    missing = series.isna()
+    if is_object_dtype(series) or is_string_dtype(series):
+        blanks = series.map(
+            lambda value: isinstance(value, str) and not value.strip()
+        )
+        missing = missing | blanks
+    return missing
 
 
 def _find_quality_issues(
@@ -149,4 +162,3 @@ def _calculate_health_score(
     constant_columns = int((columns["unique_count"] <= 1).sum())
     constant_penalty = min(15.0, constant_columns / max(df.shape[1], 1) * 20)
     return max(0, round(100 - missing_penalty - duplicate_penalty - constant_penalty))
-
