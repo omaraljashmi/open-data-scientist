@@ -6,13 +6,24 @@ from hashlib import sha256
 
 import pandas as pd
 import streamlit as st
+from pandas.api.types import (
+    is_bool_dtype,
+    is_datetime64_any_dtype,
+    is_numeric_dtype,
+)
 
 from ods import (
+    AggregateRule,
     ChartSuggestion,
     DatasetLoadError,
+    FilterRule,
     INTENTS,
+    QueryBuilderError,
+    QuerySpec,
     build_chart_data,
     build_markdown_report,
+    build_query,
+    execute_query,
     infer_column_semantics,
     load_dataset,
     profile_dataset,
@@ -35,6 +46,27 @@ AGGREGATIONS = {
     "Median": "median",
     "Total": "sum",
     "Count": "count",
+    "Minimum": "min",
+    "Maximum": "max",
+}
+FILTER_OPERATORS = {
+    "Equals": "eq",
+    "Does not equal": "ne",
+    "Greater than": "gt",
+    "At least": "gte",
+    "Less than": "lt",
+    "At most": "lte",
+    "Contains": "contains",
+    "Starts with": "starts_with",
+    "Is missing": "is_null",
+    "Is not missing": "is_not_null",
+}
+SUMMARY_CALCULATIONS = {
+    "Count rows": "count_rows",
+    "Count non-missing": "count_values",
+    "Average": "mean",
+    "Median": "median",
+    "Total": "sum",
     "Minimum": "min",
     "Maximum": "max",
 }
@@ -87,6 +119,280 @@ def build_role_review(dataframe: pd.DataFrame) -> pd.DataFrame:
             for semantic in infer_column_semantics(dataframe)
         ]
     )
+
+
+def filter_operator_labels(series: pd.Series) -> list[str]:
+    """Return sensible visual filter choices for a column's data type."""
+    if is_bool_dtype(series):
+        return ["Equals", "Does not equal", "Is missing", "Is not missing"]
+    if is_numeric_dtype(series) or is_datetime64_any_dtype(series):
+        return [
+            "Equals",
+            "Does not equal",
+            "Greater than",
+            "At least",
+            "Less than",
+            "At most",
+            "Is missing",
+            "Is not missing",
+        ]
+    return [
+        "Equals",
+        "Does not equal",
+        "Contains",
+        "Starts with",
+        "Is missing",
+        "Is not missing",
+    ]
+
+
+def default_aggregate_alias(function: str, column: str | None) -> str:
+    """Create a short, readable output name for a summary calculation."""
+    labels = {
+        "count_rows": "row_count",
+        "count_values": "count",
+        "mean": "average",
+        "median": "median",
+        "sum": "total",
+        "min": "minimum",
+        "max": "maximum",
+    }
+    return labels[function] if column is None else f"{labels[function]}_{column}"
+
+
+def render_visual_sql_builder(
+    dataframe: pd.DataFrame,
+    dataset_key: str,
+    filename: str,
+) -> None:
+    """Render a button-driven query builder backed by in-memory DuckDB."""
+    st.subheader("Visual SQL query builder")
+    st.caption(
+        "Choose columns, filters, summaries, and sorting with controls. ODS generates readable SQL "
+        "and runs it only against this uploaded dataset in memory."
+    )
+
+    column_names = [str(column) for column in dataframe.columns]
+    if not column_names:
+        st.info("This dataset has no columns to query.")
+        return
+    if len(column_names) != len(set(column_names)):
+        st.error("Visual SQL needs unique column names. Rename duplicate columns and upload the file again.")
+        return
+
+    key_prefix = f"visual-sql-{dataset_key}"
+    mode = st.radio(
+        "What do you want to create?",
+        ["View and filter rows", "Create a summary"],
+        horizontal=True,
+        key=f"{key_prefix}-mode",
+    )
+
+    selected_columns: tuple[str, ...] = ()
+    group_by: tuple[str, ...] = ()
+    aggregates: tuple[AggregateRule, ...] = ()
+    output_names: list[str]
+
+    if mode == "View and filter rows":
+        chosen_columns = st.multiselect(
+            "Columns to show",
+            column_names,
+            default=column_names,
+            help="The result keeps the same row-level detail as the upload.",
+            key=f"{key_prefix}-columns",
+        )
+        selected_columns = tuple(chosen_columns)
+        output_names = list(chosen_columns)
+    else:
+        semantics = infer_column_semantics(dataframe)
+        suggested_group = next(
+            (
+                semantic.column
+                for semantic in semantics
+                if semantic.role in {"categorical", "datetime"}
+            ),
+            None,
+        )
+        chosen_groups = st.multiselect(
+            "Group results by",
+            column_names,
+            default=[suggested_group] if suggested_group else [],
+            help="Leave this empty to calculate one total for the full dataset.",
+            key=f"{key_prefix}-groups",
+        )
+        group_by = tuple(chosen_groups)
+
+        numeric_columns = [
+            name for name in column_names if is_numeric_dtype(dataframe[name])
+        ]
+        calculation_labels = ["Count rows", "Count non-missing"]
+        if numeric_columns:
+            calculation_labels.extend(
+                ["Average", "Median", "Total", "Minimum", "Maximum"]
+            )
+        calculation_label = st.selectbox(
+            "Summary calculation",
+            calculation_labels,
+            key=f"{key_prefix}-calculation",
+        )
+        function = SUMMARY_CALCULATIONS[calculation_label]
+        source_column: str | None = None
+        if function != "count_rows":
+            candidates = column_names if function == "count_values" else numeric_columns
+            source_column = st.selectbox(
+                "Column to summarize",
+                candidates,
+                key=f"{key_prefix}-summary-column",
+            )
+        default_alias = default_aggregate_alias(function, source_column)
+        alias = st.text_input(
+            "Result column name",
+            value=default_alias,
+            key=f"{key_prefix}-alias-{function}-{source_column or 'rows'}",
+        ).strip()
+        aggregates = (
+            AggregateRule(function=function, column=source_column, alias=alias),
+        )
+        output_names = [*chosen_groups, alias]
+
+    st.markdown("#### Optional filters")
+    filter_count = st.slider(
+        "Number of filters",
+        min_value=0,
+        max_value=3,
+        value=0,
+        help="Filters are combined with AND.",
+        key=f"{key_prefix}-filter-count",
+    )
+    filters: list[FilterRule] = []
+    for index in range(filter_count):
+        column_control, operator_control, value_control = st.columns([1.2, 1.2, 1.6])
+        filter_column = column_control.selectbox(
+            f"Filter {index + 1} column",
+            column_names,
+            key=f"{key_prefix}-filter-column-{index}",
+        )
+        operator_label = operator_control.selectbox(
+            f"Filter {index + 1} rule",
+            filter_operator_labels(dataframe[filter_column]),
+            key=f"{key_prefix}-filter-operator-{index}",
+        )
+        operator = FILTER_OPERATORS[operator_label]
+        filter_value = None
+        if operator in {"is_null", "is_not_null"}:
+            value_control.caption("No value is needed for this rule.")
+        elif is_bool_dtype(dataframe[filter_column]):
+            filter_value = value_control.selectbox(
+                f"Filter {index + 1} value",
+                [True, False],
+                key=f"{key_prefix}-filter-value-{index}",
+            )
+        elif is_datetime64_any_dtype(dataframe[filter_column]):
+            non_null_dates = pd.to_datetime(
+                dataframe[filter_column], errors="coerce"
+            ).dropna()
+            default_date = (
+                non_null_dates.iloc[0].date()
+                if not non_null_dates.empty
+                else pd.Timestamp.today().date()
+            )
+            filter_value = value_control.date_input(
+                f"Filter {index + 1} value",
+                value=default_date,
+                key=f"{key_prefix}-filter-value-{index}",
+            )
+        else:
+            filter_value = value_control.text_input(
+                f"Filter {index + 1} value",
+                help="Numeric values may include commas, such as 1,000.",
+                key=f"{key_prefix}-filter-value-{index}",
+            )
+        filters.append(FilterRule(filter_column, operator, filter_value))
+
+    st.markdown("#### Sort and limit")
+    sort_control, direction_control, limit_control = st.columns([1.4, 1, 1])
+    sort_label = sort_control.selectbox(
+        "Sort results by",
+        ["No sorting", *output_names],
+        key=f"{key_prefix}-sort-column",
+    )
+    direction_label = direction_control.selectbox(
+        "Direction",
+        ["Ascending", "Descending"],
+        disabled=sort_label == "No sorting",
+        key=f"{key_prefix}-sort-direction",
+    )
+    limit = int(
+        limit_control.number_input(
+            "Maximum rows",
+            min_value=1,
+            max_value=5000,
+            value=100,
+            step=25,
+            key=f"{key_prefix}-limit",
+        )
+    )
+
+    spec = QuerySpec(
+        selected_columns=selected_columns,
+        filters=tuple(filters),
+        group_by=group_by,
+        aggregates=aggregates,
+        sort_by=None if sort_label == "No sorting" else sort_label,
+        sort_descending=direction_label == "Descending",
+        limit=limit,
+    )
+    signature = sha256(f"{dataset_key}:{spec!r}".encode()).hexdigest()
+    state_key = f"{key_prefix}-result"
+
+    try:
+        query = build_query(dataframe, spec)
+    except QueryBuilderError as exc:
+        st.error(str(exc))
+        query = None
+
+    if query is not None:
+        with st.expander("Generated SQL", expanded=False):
+            st.code(query.display_sql, language="sql")
+            st.caption(
+                "ODS quotes column names and binds filter values separately before execution. "
+                "The displayed SQL is a readable copy for learning and reuse."
+            )
+
+    if st.button(
+        "Run query",
+        type="primary",
+        disabled=query is None,
+        key=f"{key_prefix}-run",
+    ) and query is not None:
+        try:
+            result = execute_query(dataframe, spec)
+            st.session_state[state_key] = {
+                "signature": signature,
+                "dataframe": result.dataframe,
+            }
+        except QueryBuilderError as exc:
+            st.error(str(exc))
+
+    saved_result = st.session_state.get(state_key)
+    if saved_result and saved_result["signature"] == signature:
+        result_frame = saved_result["dataframe"]
+        result_metrics = st.columns(2)
+        result_metrics[0].metric("Result rows", f"{len(result_frame):,}")
+        result_metrics[1].metric("Result columns", f"{len(result_frame.columns):,}")
+        st.dataframe(result_frame.head(500), use_container_width=True, hide_index=True)
+        if len(result_frame) > 500:
+            st.caption("Previewing the first 500 rows; the download includes the full result.")
+        download_name = filename.rsplit(".", 1)[0] + "-query-result.csv"
+        st.download_button(
+            "Download query result",
+            data=result_frame.to_csv(index=False).encode("utf-8"),
+            file_name=download_name,
+            mime="text/csv",
+            key=f"{key_prefix}-download",
+        )
+    elif saved_result:
+        st.info("The query controls changed. Run the query again to refresh the result.")
 
 
 st.set_page_config(
@@ -149,8 +455,15 @@ metrics = [
 for container, (label, value) in zip(metric_columns, metrics, strict=True):
     container.metric(label, value)
 
-overview_tab, dashboard_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
-    ["Data preview", "Smart dashboard", "Column profile", "Quality findings", "Statistics"]
+overview_tab, dashboard_tab, query_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
+    [
+        "Data preview",
+        "Smart dashboard",
+        "Visual SQL",
+        "Column profile",
+        "Quality findings",
+        "Statistics",
+    ]
 )
 
 with overview_tab:
@@ -235,6 +548,13 @@ with dashboard_tab:
                 st.markdown(f"#### {suggestion.title}")
                 st.caption(suggestion.explanation)
                 render_chart(dataframe, suggestion)
+
+with query_tab:
+    render_visual_sql_builder(
+        dataframe,
+        sha256(uploaded_bytes).hexdigest()[:12],
+        uploaded_file.name,
+    )
 
 with columns_tab:
     st.subheader("Column profile")
