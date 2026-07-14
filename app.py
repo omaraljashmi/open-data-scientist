@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from hashlib import sha256
+import re
 
 import pandas as pd
 import streamlit as st
@@ -14,6 +16,10 @@ from pandas.api.types import (
 
 from ods import (
     AggregateRule,
+    DashboardCard,
+    DashboardConfig,
+    DashboardFilter,
+    DashboardStudioError,
     ChartSuggestion,
     CleaningAction,
     CleaningError,
@@ -25,18 +31,33 @@ from ods import (
     SqlCoachError,
     analyze_query,
     apply_cleaning_actions,
+    apply_dashboard_filters,
+    build_card_result,
     build_chart_data,
     build_cleaning_recipe,
+    build_dashboard_html,
     build_markdown_report,
     build_query,
+    categorical_filter_options,
+    dashboard_config_from_json,
+    dashboard_config_to_json,
+    default_dashboard_config,
+    default_filter_for_column,
     execute_query,
+    format_metric_value,
     infer_column_semantics,
     load_dataset,
+    move_dashboard_card,
+    next_dashboard_id,
     profile_dataset,
     replay_cleaning_batches,
+    remove_dashboard_card,
+    replace_dashboard_card,
+    replace_dashboard_filter,
     roles_from_mapping,
     suggest_dashboard,
     suggest_cleaning_actions,
+    validate_dashboard_config,
 )
 
 
@@ -77,6 +98,31 @@ SUMMARY_CALCULATIONS = {
     "Total": "sum",
     "Minimum": "min",
     "Maximum": "max",
+}
+STUDIO_CARD_LABELS = {
+    "kpi": "KPI card",
+    "bar": "Bar chart",
+    "line": "Line chart",
+    "scatter": "Scatter plot",
+    "distribution": "Distribution",
+}
+STUDIO_CARD_VALUES = {label: value for value, label in STUDIO_CARD_LABELS.items()}
+STUDIO_METRIC_LABELS = {
+    "row_count": "Row count",
+    "sum": "Total",
+    "mean": "Average",
+    "median": "Median",
+    "distinct_count": "Distinct count",
+}
+STUDIO_METRIC_VALUES = {
+    label: value for value, label in STUDIO_METRIC_LABELS.items()
+}
+STUDIO_DATE_GRAINS = {
+    "Day": "day",
+    "Week": "week",
+    "Month": "month",
+    "Quarter": "quarter",
+    "Year": "year",
 }
 
 
@@ -786,6 +832,793 @@ def render_cleaning_studio(
     )
 
 
+def option_index(options: list[str], value: str) -> int:
+    """Return a safe selectbox index for a possibly refreshed configuration."""
+    return options.index(value) if value in options else 0
+
+
+def safe_download_stem(value: str) -> str:
+    """Create a short cross-platform filename without changing the visible title."""
+    normalized = re.sub(r"[^A-Za-z0-9_-]+", "-", value.strip()).strip("-")
+    return (normalized or "ods-dashboard")[:60]
+
+
+def get_dashboard_studio_state(
+    dataframe: pd.DataFrame,
+    dataset_key: str,
+) -> dict[str, object]:
+    """Return a validated dashboard state scoped to the active cleaned dataset."""
+    state_key = f"dashboard-studio-state-{dataset_key}"
+    state = st.session_state.get(state_key)
+    if not isinstance(state, dict) or not isinstance(
+        state.get("config"), DashboardConfig
+    ):
+        state = {
+            "config": default_dashboard_config(dataframe),
+            "nonce": 0,
+            "html_export": None,
+        }
+        st.session_state[state_key] = state
+        return state
+    try:
+        validate_dashboard_config(dataframe, state["config"])
+    except DashboardStudioError:
+        state = {
+            "config": default_dashboard_config(dataframe),
+            "nonce": int(state.get("nonce", 0)) + 1,
+            "html_export": None,
+        }
+        st.session_state[state_key] = state
+    return state
+
+
+def commit_dashboard_config(
+    dataframe: pd.DataFrame,
+    state: dict[str, object],
+    config: DashboardConfig,
+    *,
+    reset_widgets: bool = False,
+) -> None:
+    """Validate and save one local layout, invalidating stale HTML exports."""
+    validate_dashboard_config(dataframe, config)
+    state["config"] = config
+    state["html_export"] = None
+    if reset_widgets:
+        state["nonce"] = int(state.get("nonce", 0)) + 1
+
+
+def studio_column_groups(
+    dataframe: pd.DataFrame,
+) -> tuple[list[str], list[str], list[str]]:
+    """Return all, numeric-compatible, and inferred date columns for controls."""
+    columns = [str(column) for column in dataframe.columns]
+    numeric = [
+        column
+        for column in columns
+        if not is_bool_dtype(dataframe[column])
+        and pd.to_numeric(dataframe[column], errors="coerce").notna().any()
+    ]
+    date_columns = [
+        semantic.column
+        for semantic in infer_column_semantics(dataframe)
+        if semantic.role == "datetime"
+    ]
+    return columns, numeric, date_columns
+
+
+def render_dashboard_card_editor(
+    dataframe: pd.DataFrame,
+    card: DashboardCard,
+    key_prefix: str,
+) -> DashboardCard:
+    """Render type-aware card controls and return the proposed definition."""
+    columns, numeric, date_columns = studio_column_groups(dataframe)
+    available_kinds = ["kpi"]
+    if columns:
+        available_kinds.append("bar")
+    if date_columns:
+        available_kinds.append("line")
+    if len(numeric) >= 2:
+        available_kinds.append("scatter")
+    if numeric:
+        available_kinds.append("distribution")
+    if card.kind not in available_kinds:
+        available_kinds.append(card.kind)
+    kind_labels = [STUDIO_CARD_LABELS[kind] for kind in available_kinds]
+    kind_label = st.selectbox(
+        "Card type",
+        kind_labels,
+        index=option_index(kind_labels, STUDIO_CARD_LABELS[card.kind]),
+        key=f"{key_prefix}-kind",
+    )
+    kind = STUDIO_CARD_VALUES[kind_label]
+    title = st.text_input(
+        "Card title",
+        value=card.title,
+        max_chars=100,
+        key=f"{key_prefix}-title",
+    ).strip()
+
+    if kind == "kpi":
+        metric_values = ["row_count"]
+        if numeric:
+            metric_values.extend(["sum", "mean", "median"])
+        if columns:
+            metric_values.append("distinct_count")
+        metric_labels = [STUDIO_METRIC_LABELS[value] for value in metric_values]
+        current_metric = card.metric if card.metric in metric_values else "row_count"
+        metric_label = st.selectbox(
+            "Calculation",
+            metric_labels,
+            index=option_index(
+                metric_labels, STUDIO_METRIC_LABELS[current_metric]
+            ),
+            key=f"{key_prefix}-metric",
+        )
+        metric = STUDIO_METRIC_VALUES[metric_label]
+        column = None
+        if metric != "row_count":
+            candidates = columns if metric == "distinct_count" else numeric
+            current_column = card.column if card.column in candidates else candidates[0]
+            column = st.selectbox(
+                "Source column",
+                candidates,
+                index=option_index(candidates, current_column),
+                key=f"{key_prefix}-column-{metric}",
+            )
+        return DashboardCard(
+            card.card_id,
+            "kpi",
+            title,
+            metric=metric,
+            column=column,
+        )
+
+    if kind == "bar":
+        current_x = card.x if card.x in columns else columns[0]
+        x = st.selectbox(
+            "Category column",
+            columns,
+            index=option_index(columns, current_x),
+            key=f"{key_prefix}-bar-x",
+        )
+        aggregation_values = ["row_count", "distinct_count"]
+        if numeric:
+            aggregation_values[1:1] = ["sum", "mean", "median"]
+        aggregation_labels = [
+            STUDIO_METRIC_LABELS[value] for value in aggregation_values
+        ]
+        current_aggregation = (
+            card.aggregation
+            if card.aggregation in aggregation_values
+            else "row_count"
+        )
+        aggregation_label = st.selectbox(
+            "Calculation",
+            aggregation_labels,
+            index=option_index(
+                aggregation_labels,
+                STUDIO_METRIC_LABELS[current_aggregation],
+            ),
+            key=f"{key_prefix}-bar-aggregation",
+        )
+        aggregation = STUDIO_METRIC_VALUES[aggregation_label]
+        y = None
+        if aggregation != "row_count":
+            candidates = columns if aggregation == "distinct_count" else numeric
+            current_y = card.y if card.y in candidates else candidates[0]
+            y = st.selectbox(
+                "Value column",
+                candidates,
+                index=option_index(candidates, current_y),
+                key=f"{key_prefix}-bar-y-{aggregation}",
+            )
+        top_n = int(
+            st.number_input(
+                "Maximum groups",
+                min_value=3,
+                max_value=50,
+                value=int(card.top_n),
+                step=1,
+                key=f"{key_prefix}-bar-top-n",
+            )
+        )
+        return DashboardCard(
+            card.card_id,
+            "bar",
+            title,
+            x=x,
+            y=y,
+            aggregation=aggregation,
+            top_n=top_n,
+        )
+
+    if kind == "line":
+        current_x = card.x if card.x in date_columns else date_columns[0]
+        x = st.selectbox(
+            "Date column",
+            date_columns,
+            index=option_index(date_columns, current_x),
+            key=f"{key_prefix}-line-x",
+        )
+        aggregation_values = ["row_count", "distinct_count"]
+        if numeric:
+            aggregation_values[1:1] = ["sum", "mean", "median"]
+        aggregation_labels = [
+            STUDIO_METRIC_LABELS[value] for value in aggregation_values
+        ]
+        current_aggregation = (
+            card.aggregation
+            if card.aggregation in aggregation_values
+            else "row_count"
+        )
+        aggregation_label = st.selectbox(
+            "Calculation",
+            aggregation_labels,
+            index=option_index(
+                aggregation_labels,
+                STUDIO_METRIC_LABELS[current_aggregation],
+            ),
+            key=f"{key_prefix}-line-aggregation",
+        )
+        aggregation = STUDIO_METRIC_VALUES[aggregation_label]
+        y = None
+        if aggregation != "row_count":
+            candidates = columns if aggregation == "distinct_count" else numeric
+            current_y = card.y if card.y in candidates else candidates[0]
+            y = st.selectbox(
+                "Value column",
+                candidates,
+                index=option_index(candidates, current_y),
+                key=f"{key_prefix}-line-y-{aggregation}",
+            )
+        grain_labels = list(STUDIO_DATE_GRAINS)
+        current_grain = next(
+            label
+            for label, value in STUDIO_DATE_GRAINS.items()
+            if value == card.date_grain
+        )
+        grain_label = st.selectbox(
+            "Date grain",
+            grain_labels,
+            index=option_index(grain_labels, current_grain),
+            key=f"{key_prefix}-line-grain",
+        )
+        return DashboardCard(
+            card.card_id,
+            "line",
+            title,
+            x=x,
+            y=y,
+            aggregation=aggregation,
+            date_grain=STUDIO_DATE_GRAINS[grain_label],
+        )
+
+    if kind == "scatter":
+        current_x = card.x if card.x in numeric else numeric[0]
+        x = st.selectbox(
+            "X-axis column",
+            numeric,
+            index=option_index(numeric, current_x),
+            key=f"{key_prefix}-scatter-x",
+        )
+        y_options = [column for column in numeric if column != x]
+        current_y = card.y if card.y in y_options else y_options[0]
+        y = st.selectbox(
+            "Y-axis column",
+            y_options,
+            index=option_index(y_options, current_y),
+            key=f"{key_prefix}-scatter-y-{x}",
+        )
+        return DashboardCard(card.card_id, "scatter", title, x=x, y=y)
+
+    current_column = card.column if card.column in numeric else numeric[0]
+    column = st.selectbox(
+        "Numeric column",
+        numeric,
+        index=option_index(numeric, current_column),
+        key=f"{key_prefix}-distribution-column",
+    )
+    bins = int(
+        st.slider(
+            "Bins",
+            min_value=3,
+            max_value=50,
+            value=int(card.bins),
+            key=f"{key_prefix}-distribution-bins",
+        )
+    )
+    return DashboardCard(
+        card.card_id,
+        "distribution",
+        title,
+        column=column,
+        bins=bins,
+    )
+
+
+def render_dashboard_filters(
+    dataframe: pd.DataFrame,
+    config: DashboardConfig,
+    state: dict[str, object],
+    key_prefix: str,
+) -> DashboardConfig:
+    """Render global filter controls and persist each validated change."""
+    nonce = int(state.get("nonce", 0))
+    with st.expander(
+        f"Global filters · {len(config.filters)} active",
+        expanded=bool(config.filters),
+    ):
+        st.caption(
+            "Filters use AND logic and update every card. An empty value selection means all values."
+        )
+        for index, item in enumerate(config.filters):
+            with st.container(border=True):
+                heading, remove_control = st.columns([5, 1])
+                heading.markdown(f"**{item.column}** · {item.kind.replace('_', ' ')}")
+                if remove_control.button(
+                    "Remove",
+                    key=f"{key_prefix}-filter-remove-{item.filter_id}-{nonce}",
+                ):
+                    updated = replace(
+                        config,
+                        filters=tuple(
+                            existing
+                            for existing in config.filters
+                            if existing.filter_id != item.filter_id
+                        ),
+                    )
+                    commit_dashboard_config(
+                        dataframe, state, updated, reset_widgets=True
+                    )
+                    st.rerun()
+
+                if item.kind == "values":
+                    options = list(categorical_filter_options(dataframe, item.column))
+                    for saved in item.values:
+                        if saved not in options:
+                            options.append(saved)
+                    selected = tuple(
+                        st.multiselect(
+                            "Values",
+                            options,
+                            default=list(item.values),
+                            placeholder="All values",
+                            key=f"{key_prefix}-filter-values-{item.filter_id}-{nonce}",
+                        )
+                    )
+                    proposed = replace_dashboard_filter(
+                        config, replace(item, values=selected)
+                    )
+                elif item.kind == "range":
+                    range_columns = st.columns(2)
+                    minimum = float(
+                        range_columns[0].number_input(
+                            "Minimum",
+                            value=float(item.minimum),
+                            key=f"{key_prefix}-filter-min-{item.filter_id}-{nonce}",
+                        )
+                    )
+                    maximum = float(
+                        range_columns[1].number_input(
+                            "Maximum",
+                            value=float(item.maximum),
+                            key=f"{key_prefix}-filter-max-{item.filter_id}-{nonce}",
+                        )
+                    )
+                    if minimum > maximum:
+                        st.error("Minimum must not be greater than maximum.")
+                        proposed = config
+                    else:
+                        proposed = replace_dashboard_filter(
+                            config,
+                            replace(item, minimum=minimum, maximum=maximum),
+                        )
+                else:
+                    date_columns = st.columns(2)
+                    start = date_columns[0].date_input(
+                        "Start date",
+                        value=pd.Timestamp(item.start).date(),
+                        key=f"{key_prefix}-filter-start-{item.filter_id}-{nonce}",
+                    )
+                    end = date_columns[1].date_input(
+                        "End date",
+                        value=pd.Timestamp(item.end).date(),
+                        key=f"{key_prefix}-filter-end-{item.filter_id}-{nonce}",
+                    )
+                    if start > end:
+                        st.error("Start date must not be after end date.")
+                        proposed = config
+                    else:
+                        proposed = replace_dashboard_filter(
+                            config,
+                            replace(
+                                item,
+                                start=start.isoformat(),
+                                end=end.isoformat(),
+                            ),
+                        )
+
+                if proposed != config:
+                    commit_dashboard_config(dataframe, state, proposed)
+                    st.rerun()
+
+        used_columns = {item.column for item in config.filters}
+        available_columns = [
+            str(column)
+            for column in dataframe.columns
+            if str(column) not in used_columns
+        ]
+        if len(config.filters) >= 5:
+            st.info("The five-filter limit keeps dashboards understandable and fast.")
+        elif available_columns:
+            add_columns = st.columns([3, 1])
+            selected_column = add_columns[0].selectbox(
+                "Add a filter",
+                available_columns,
+                key=f"{key_prefix}-filter-new-column-{nonce}",
+            )
+            if add_columns[1].button(
+                "Add filter",
+                type="primary",
+                key=f"{key_prefix}-filter-add-{nonce}",
+            ):
+                new_filter = default_filter_for_column(
+                    dataframe,
+                    selected_column,
+                    next_dashboard_id(config, "filter"),
+                )
+                updated = replace(
+                    config, filters=(*config.filters, new_filter)
+                )
+                commit_dashboard_config(
+                    dataframe, state, updated, reset_widgets=True
+                )
+                st.rerun()
+    return config
+
+
+def render_dashboard_result_card(
+    dataframe: pd.DataFrame,
+    config: DashboardConfig,
+    card: DashboardCard,
+    index: int,
+    state: dict[str, object],
+    key_prefix: str,
+) -> None:
+    """Render one card, its audit evidence, and compact editing controls."""
+    result = build_card_result(dataframe, card)
+    if card.kind == "kpi":
+        st.metric(card.title, format_metric_value(result.value))
+    else:
+        st.markdown(f"#### {card.title}")
+        if result.audit_table.empty:
+            st.info("No usable rows match this card and the active filters.")
+        elif result.figure is not None:
+            st.plotly_chart(
+                result.figure,
+                use_container_width=True,
+                config={"displaylogo": False, "responsive": True},
+            )
+
+    with st.expander("Calculation details"):
+        st.caption(result.calculation)
+        st.dataframe(
+            result.audit_table.head(500),
+            use_container_width=True,
+            hide_index=True,
+        )
+        if len(result.audit_table) > 500:
+            st.caption(
+                f"Showing 500 of {len(result.audit_table):,} audit rows. The chart uses the full calculated result."
+            )
+
+    nonce = int(state.get("nonce", 0))
+    with st.expander("Edit card"):
+        proposed = render_dashboard_card_editor(
+            dataframe,
+            card,
+            f"{key_prefix}-edit-{card.card_id}-{nonce}",
+        )
+        if proposed != card:
+            try:
+                updated = replace_dashboard_card(config, proposed)
+                commit_dashboard_config(dataframe, state, updated)
+                st.rerun()
+            except DashboardStudioError as exc:
+                st.error(str(exc))
+
+    controls = st.columns(3)
+    if controls[0].button(
+        "← Earlier",
+        disabled=index == 0,
+        key=f"{key_prefix}-earlier-{card.card_id}-{nonce}",
+    ):
+        updated = move_dashboard_card(config, card.card_id, -1)
+        commit_dashboard_config(dataframe, state, updated, reset_widgets=True)
+        st.rerun()
+    if controls[1].button(
+        "Later →",
+        disabled=index == len(config.cards) - 1,
+        key=f"{key_prefix}-later-{card.card_id}-{nonce}",
+    ):
+        updated = move_dashboard_card(config, card.card_id, 1)
+        commit_dashboard_config(dataframe, state, updated, reset_widgets=True)
+        st.rerun()
+    if controls[2].button(
+        "Remove",
+        disabled=len(config.cards) == 1,
+        key=f"{key_prefix}-remove-{card.card_id}-{nonce}",
+    ):
+        updated = remove_dashboard_card(config, card.card_id)
+        commit_dashboard_config(dataframe, state, updated, reset_widgets=True)
+        st.rerun()
+
+
+def render_dashboard_studio(
+    dataframe: pd.DataFrame,
+    dataset_key: str,
+    filename: str,
+) -> None:
+    """Render the local visual dashboard composer and portable exports."""
+    st.subheader("Dashboard Studio")
+    st.caption(
+        "Compose a focused dashboard with visual controls. Every filter and calculation runs locally, "
+        "and every chart includes the exact table behind it."
+    )
+    state = get_dashboard_studio_state(dataframe, dataset_key)
+    config = state["config"]
+    assert isinstance(config, DashboardConfig)
+    nonce = int(state.get("nonce", 0))
+    key_prefix = f"dashboard-studio-{dataset_key}"
+
+    dashboard_name = st.text_input(
+        "Dashboard name",
+        value=config.name,
+        max_chars=80,
+        key=f"{key_prefix}-name-{nonce}",
+    ).strip()
+    if dashboard_name and dashboard_name != config.name:
+        proposed = replace(config, name=dashboard_name)
+        try:
+            commit_dashboard_config(dataframe, state, proposed)
+            config = proposed
+        except DashboardStudioError as exc:
+            st.error(str(exc))
+
+    config = render_dashboard_filters(
+        dataframe, config, state, key_prefix
+    )
+    config = state["config"]
+    assert isinstance(config, DashboardConfig)
+    try:
+        filtered = apply_dashboard_filters(dataframe, config.filters)
+    except DashboardStudioError as exc:
+        st.error(str(exc))
+        return
+
+    summary = st.columns(4)
+    summary[0].metric("Rows in view", f"{len(filtered):,}", delta=f"of {len(dataframe):,}")
+    summary[1].metric("Cards", f"{len(config.cards):,}")
+    summary[2].metric("Global filters", f"{len(config.filters):,}")
+    summary[3].metric("Processing", "Local")
+
+    if filtered.empty:
+        st.warning(
+            "The active filters return no rows. KPI row counts remain accurate; loosen a filter to restore charts."
+        )
+
+    st.markdown("#### Dashboard canvas")
+    canvas_columns = st.columns(2)
+    for index, card in enumerate(config.cards):
+        with canvas_columns[index % 2]:
+            with st.container(border=True):
+                render_dashboard_result_card(
+                    filtered,
+                    config,
+                    card,
+                    index,
+                    state,
+                    key_prefix,
+                )
+
+    with st.expander(
+        f"Add a card · {len(config.cards)}/12",
+        expanded=False,
+    ):
+        if len(config.cards) >= 12:
+            st.info("This dashboard has reached the 12-card clarity limit.")
+        else:
+            draft = DashboardCard("draft", "kpi", "New KPI")
+            proposed_draft = render_dashboard_card_editor(
+                dataframe,
+                draft,
+                f"{key_prefix}-new-card-{nonce}",
+            )
+            if st.button(
+                "Add card",
+                type="primary",
+                key=f"{key_prefix}-add-card-{nonce}",
+            ):
+                new_card = replace(
+                    proposed_draft,
+                    card_id=next_dashboard_id(config, "card"),
+                )
+                updated = replace(config, cards=(*config.cards, new_card))
+                try:
+                    commit_dashboard_config(
+                        dataframe, state, updated, reset_widgets=True
+                    )
+                    st.rerun()
+                except DashboardStudioError as exc:
+                    st.error(str(exc))
+
+    st.markdown("#### Save and share")
+    st.caption(
+        "Configuration JSON stores the layout and filters, not the dataset. The HTML export contains "
+        "the filtered dashboard results so it can open without Python or an internet connection."
+    )
+    stem = safe_download_stem(config.name)
+    action_columns = st.columns(3)
+    action_columns[0].download_button(
+        "Download layout JSON",
+        data=dashboard_config_to_json(config).encode("utf-8"),
+        file_name=f"{stem}.json",
+        mime="application/json",
+        key=f"{key_prefix}-download-json",
+    )
+    if action_columns[1].button(
+        "Reset starter layout",
+        key=f"{key_prefix}-reset-{nonce}",
+    ):
+        commit_dashboard_config(
+            dataframe,
+            state,
+            default_dashboard_config(dataframe),
+            reset_widgets=True,
+        )
+        st.rerun()
+
+    signature = sha256(
+        f"{dataset_key}:{dashboard_config_to_json(config)}".encode()
+    ).hexdigest()
+    if action_columns[2].button(
+        "Prepare offline HTML",
+        type="primary",
+        key=f"{key_prefix}-prepare-html-{nonce}",
+    ):
+        with st.spinner("Building the standalone dashboard…"):
+            state["html_export"] = {
+                "signature": signature,
+                "data": build_dashboard_html(dataframe, config).encode("utf-8"),
+            }
+
+    html_export = state.get("html_export")
+    if isinstance(html_export, dict) and html_export.get("signature") == signature:
+        st.download_button(
+            "Download offline dashboard HTML",
+            data=html_export["data"],
+            file_name=f"{stem}.html",
+            mime="text/html",
+            type="primary",
+            key=f"{key_prefix}-download-html",
+        )
+
+    uploaded_config = st.file_uploader(
+        "Load a saved dashboard layout",
+        type=["json"],
+        help="ODS validates file size, format, calculations, filters, and every referenced column before loading.",
+        key=f"{key_prefix}-upload-config-{nonce}",
+    )
+    if st.button(
+        "Load configuration",
+        disabled=uploaded_config is None,
+        key=f"{key_prefix}-load-config-{nonce}",
+    ) and uploaded_config is not None:
+        try:
+            loaded = dashboard_config_from_json(
+                uploaded_config.getvalue().decode("utf-8"), dataframe
+            )
+            commit_dashboard_config(
+                dataframe, state, loaded, reset_widgets=True
+            )
+            st.rerun()
+        except (DashboardStudioError, UnicodeDecodeError) as exc:
+            st.error(str(exc))
+
+
+def render_guided_dashboard(dataframe: pd.DataFrame, dataset_key: str) -> None:
+    """Render the preserved role-reviewed recommendation workflow."""
+    st.subheader("Smart guided dashboard")
+    st.caption(
+        "ODS recommends a small dashboard, but you stay in control. Review the inferred roles, "
+        "choose the question, and verify the exact calculation behind every chart."
+    )
+
+    role_review = build_role_review(dataframe)
+    low_confidence = any(
+        semantic.confidence < 0.9
+        for semantic in infer_column_semantics(dataframe)
+    )
+    with st.expander("1. Review column roles", expanded=low_confidence):
+        st.caption(
+            "Correct anything ODS misunderstood. IDs are excluded from measures, free text is not charted, "
+            "and ignored columns are left out entirely."
+        )
+        reviewed_table = st.data_editor(
+            role_review,
+            use_container_width=True,
+            hide_index=True,
+            disabled=["Column", "Format", "Confidence", "Why ODS chose it"],
+            column_config={
+                "Role": st.column_config.SelectboxColumn(
+                    "Role",
+                    options=list(ROLE_LABELS.values()),
+                    required=True,
+                ),
+                "Why ODS chose it": st.column_config.TextColumn(width="large"),
+            },
+            key=f"role-review-{dataset_key}",
+        )
+
+    st.markdown("#### 2. Choose the question")
+    controls = st.columns([2, 1, 1, 1])
+    intent = controls[0].selectbox(
+        "Dashboard goal",
+        INTENTS,
+        help="This determines which chart families ODS recommends.",
+        key=f"guided-intent-{dataset_key}",
+    )
+    aggregation_label = controls[1].selectbox(
+        "Aggregation",
+        list(AGGREGATIONS),
+        help="Used for category comparisons and time trends.",
+        key=f"guided-aggregation-{dataset_key}",
+    )
+    date_grain = controls[2].selectbox(
+        "Date grain",
+        ["Day", "Week", "Month", "Quarter", "Year"],
+        index=2,
+        help="Used when a chart groups records over time.",
+        key=f"guided-grain-{dataset_key}",
+    )
+    chart_count = controls[3].slider(
+        "Charts",
+        min_value=1,
+        max_value=4,
+        value=4,
+        key=f"guided-count-{dataset_key}",
+    )
+
+    role_mapping = {
+        str(row["Column"]): ROLE_VALUES[str(row["Role"])]
+        for row in reviewed_table.to_dict(orient="records")
+    }
+    reviewed_roles = roles_from_mapping(dataframe, role_mapping)
+    suggestions = suggest_dashboard(
+        dataframe,
+        max_charts=chart_count,
+        roles=reviewed_roles,
+        intent=intent,
+        aggregation=AGGREGATIONS[aggregation_label],
+        date_grain=date_grain.lower(),
+    )
+
+    st.markdown("#### 3. Recommended dashboard")
+    if not suggestions:
+        st.info(
+            "ODS could not make a safe recommendation for this goal with the reviewed roles. "
+            "Try another goal or correct a column role above."
+        )
+    dashboard_columns = st.columns(2)
+    for index, suggestion in enumerate(suggestions):
+        with dashboard_columns[index % 2]:
+            with st.container(border=True):
+                st.markdown(f"#### {suggestion.title}")
+                st.caption(suggestion.explanation)
+                render_chart(dataframe, suggestion)
+
+
 st.set_page_config(
     page_title="Open Data Scientist",
     page_icon="🔎",
@@ -871,23 +1704,56 @@ metrics = [
 for container, (label, value) in zip(metric_columns, metrics, strict=True):
     container.metric(label, value)
 
-overview_tab, cleaning_tab, dashboard_tab, query_tab, coach_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
-    [
-        "Data preview",
-        "Clean data",
-        "Smart dashboard",
-        "Visual SQL",
-        "SQL Coach",
-        "Column profile",
-        "Quality findings",
-        "Statistics",
-    ]
+data_tab, cleaning_tab, dashboard_tab, query_tab, coach_tab = st.tabs(
+    ["Data", "Clean", "Dashboard", "Visual SQL", "SQL Coach"]
 )
 
-with overview_tab:
-    st.subheader("Data preview")
-    st.dataframe(dataframe.head(100), use_container_width=True, hide_index=True)
-    st.caption("Showing up to the first 100 rows from the current working dataset.")
+with data_tab:
+    preview_tab, quality_tab, columns_tab, statistics_tab = st.tabs(
+        ["Preview", "Quality", "Columns", "Statistics"]
+    )
+    with preview_tab:
+        st.subheader("Data preview")
+        st.dataframe(dataframe.head(100), use_container_width=True, hide_index=True)
+        st.caption(
+            "Showing up to the first 100 rows from the current working dataset."
+        )
+    with quality_tab:
+        st.subheader("Automatic quality findings")
+        if not profile.issues:
+            st.success("No automatic quality warnings were detected.")
+        for issue in profile.issues:
+            message = f"**{issue.title}**"
+            if issue.column:
+                message += f" · `{issue.column}`"
+            message += f" — {issue.detail}"
+            if issue.severity == "critical":
+                st.error(message)
+            elif issue.severity == "warning":
+                st.warning(message)
+            else:
+                st.info(message)
+    with columns_tab:
+        st.subheader("Column profile")
+        st.dataframe(
+            profile.column_profile, use_container_width=True, hide_index=True
+        )
+    with statistics_tab:
+        st.subheader("Numeric statistics")
+        if profile.numeric_summary.empty:
+            st.info("No numeric columns were detected.")
+        else:
+            st.dataframe(profile.numeric_summary, use_container_width=True)
+
+    report = build_markdown_report(uploaded_file.name, profile)
+    st.download_button(
+        "Download quality report",
+        data=report,
+        file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}-quality-report.md",
+        mime="text/markdown",
+        type="primary",
+        key=f"quality-report-{active_dataset_key}",
+    )
 
 with cleaning_tab:
     render_cleaning_studio(
@@ -900,82 +1766,20 @@ with cleaning_tab:
     )
 
 with dashboard_tab:
-    st.subheader("Smart guided dashboard")
-    st.caption(
-        "ODS recommends a small dashboard, but you stay in control. Review the inferred roles, "
-        "choose the question, and verify the exact calculation behind every chart."
+    dashboard_mode = st.radio(
+        "Dashboard mode",
+        ["Dashboard Studio", "Guided recommendations"],
+        horizontal=True,
+        key=f"dashboard-mode-{active_dataset_key}",
     )
-
-    role_review = build_role_review(dataframe)
-    low_confidence = any(semantic.confidence < 0.9 for semantic in infer_column_semantics(dataframe))
-    with st.expander("1. Review column roles", expanded=low_confidence):
-        st.caption(
-            "Correct anything ODS misunderstood. IDs are excluded from measures, free text is not charted, "
-            "and ignored columns are left out entirely."
+    if dashboard_mode == "Dashboard Studio":
+        render_dashboard_studio(
+            dataframe,
+            active_dataset_key,
+            uploaded_file.name,
         )
-        reviewed_table = st.data_editor(
-            role_review,
-            use_container_width=True,
-            hide_index=True,
-            disabled=["Column", "Format", "Confidence", "Why ODS chose it"],
-            column_config={
-                "Role": st.column_config.SelectboxColumn(
-                    "Role",
-                    options=list(ROLE_LABELS.values()),
-                    required=True,
-                ),
-                "Why ODS chose it": st.column_config.TextColumn(width="large"),
-            },
-            key=f"role-review-{active_dataset_key}",
-        )
-
-    st.markdown("#### 2. Choose the question")
-    controls = st.columns([2, 1, 1, 1])
-    intent = controls[0].selectbox(
-        "Dashboard goal",
-        INTENTS,
-        help="This determines which chart families ODS recommends.",
-    )
-    aggregation_label = controls[1].selectbox(
-        "Aggregation",
-        list(AGGREGATIONS),
-        help="Used for category comparisons and time trends.",
-    )
-    date_grain = controls[2].selectbox(
-        "Date grain",
-        ["Day", "Week", "Month", "Quarter", "Year"],
-        index=2,
-        help="Used when a chart groups records over time.",
-    )
-    chart_count = controls[3].slider("Charts", min_value=1, max_value=4, value=4)
-
-    role_mapping = {
-        str(row["Column"]): ROLE_VALUES[str(row["Role"])]
-        for row in reviewed_table.to_dict(orient="records")
-    }
-    reviewed_roles = roles_from_mapping(dataframe, role_mapping)
-    suggestions = suggest_dashboard(
-        dataframe,
-        max_charts=chart_count,
-        roles=reviewed_roles,
-        intent=intent,
-        aggregation=AGGREGATIONS[aggregation_label],
-        date_grain=date_grain.lower(),
-    )
-
-    st.markdown("#### 3. Recommended dashboard")
-    if not suggestions:
-        st.info(
-            "ODS could not make a safe recommendation for this goal with the reviewed roles. "
-            "Try another goal or correct a column role above."
-        )
-    dashboard_columns = st.columns(2)
-    for index, suggestion in enumerate(suggestions):
-        with dashboard_columns[index % 2]:
-            with st.container(border=True):
-                st.markdown(f"#### {suggestion.title}")
-                st.caption(suggestion.explanation)
-                render_chart(dataframe, suggestion)
+    else:
+        render_guided_dashboard(dataframe, active_dataset_key)
 
 with query_tab:
     render_visual_sql_builder(
@@ -989,39 +1793,3 @@ with coach_tab:
         dataframe,
         active_dataset_key,
     )
-
-with columns_tab:
-    st.subheader("Column profile")
-    st.dataframe(profile.column_profile, use_container_width=True, hide_index=True)
-
-with quality_tab:
-    st.subheader("Automatic quality findings")
-    if not profile.issues:
-        st.success("No automatic quality warnings were detected.")
-    for issue in profile.issues:
-        message = f"**{issue.title}**"
-        if issue.column:
-            message += f" · `{issue.column}`"
-        message += f" — {issue.detail}"
-        if issue.severity == "critical":
-            st.error(message)
-        elif issue.severity == "warning":
-            st.warning(message)
-        else:
-            st.info(message)
-
-with statistics_tab:
-    st.subheader("Numeric statistics")
-    if profile.numeric_summary.empty:
-        st.info("No numeric columns were detected.")
-    else:
-        st.dataframe(profile.numeric_summary, use_container_width=True)
-
-report = build_markdown_report(uploaded_file.name, profile)
-st.download_button(
-    "Download quality report",
-    data=report,
-    file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}-quality-report.md",
-    mime="text/markdown",
-    type="primary",
-)
