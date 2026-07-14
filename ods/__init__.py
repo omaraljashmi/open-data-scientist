@@ -23,6 +23,14 @@ from .query_builder import (
     build_query,
     execute_query,
 )
+from .sql_coach import (
+    ClauseExplanation,
+    OptimizationFinding,
+    PlanStep,
+    SqlAnalysis,
+    SqlCoachError,
+    analyze_query,
+)
 from .reporting import build_markdown_report
 
 __all__ = [
@@ -38,6 +46,12 @@ __all__ = [
     "QueryBuilderError",
     "QueryResult",
     "QuerySpec",
+    "ClauseExplanation",
+    "OptimizationFinding",
+    "PlanStep",
+    "SqlAnalysis",
+    "SqlCoachError",
+    "analyze_query",
     "build_markdown_report",
     "build_chart_data",
     "build_query",
