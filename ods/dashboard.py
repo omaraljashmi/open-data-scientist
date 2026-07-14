@@ -210,7 +210,7 @@ def suggest_dashboard(
         return ()
     roles = roles or infer_column_roles(df)
     suggestions: list[ChartSuggestion] = []
-    has_missing = bool(df.isna().any().any())
+    has_missing = any(bool(_missing_mask(df[column]).any()) for column in df.columns)
 
     def add_missingness() -> None:
         if has_missing:
@@ -349,11 +349,22 @@ def suggest_dashboard(
 def build_chart_data(df: pd.DataFrame, suggestion: ChartSuggestion) -> pd.DataFrame:
     """Prepare the auditable summary DataFrame consumed by a Streamlit chart."""
     if suggestion.kind == "missingness":
-        missing = (df.isna().mean() * 100).round(2)
+        missing = pd.Series(
+            {
+                str(column): float(_missing_mask(df[column]).mean() * 100)
+                for column in df.columns
+            }
+        ).round(2)
         return missing[missing > 0].sort_values(ascending=False).rename("missing_percent").rename_axis("column").reset_index()
 
     if suggestion.kind == "category_count":
-        values = df[suggestion.x].astype("string").fillna("(missing)")
+        values = (
+            df[suggestion.x]
+            .astype("string")
+            .str.strip()
+            .replace("", pd.NA)
+            .fillna("(missing)")
+        )
         return values.value_counts(dropna=False).head(15).rename("count").rename_axis(suggestion.x).reset_index()
 
     if suggestion.kind == "histogram":
@@ -391,6 +402,16 @@ def build_chart_data(df: pd.DataFrame, suggestion: ChartSuggestion) -> pd.DataFr
         return complete
 
     return pd.DataFrame()
+
+
+def _missing_mask(series: pd.Series) -> pd.Series:
+    """Treat whitespace-only text and nulls as the same missing-data signal."""
+    missing = series.isna()
+    if is_object_dtype(series) or is_string_dtype(series):
+        missing = missing | series.map(
+            lambda value: isinstance(value, str) and not value.strip()
+        )
+    return missing
 
 
 def _datetime_parse_score(series: pd.Series) -> float:
