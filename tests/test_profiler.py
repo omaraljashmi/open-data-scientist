@@ -173,6 +173,16 @@ class DashboardRecommendationTests(unittest.TestCase):
     def test_empty_dataset_has_no_suggestions(self) -> None:
         self.assertEqual(suggest_dashboard(pd.DataFrame()), ())
 
+    def test_dashboard_counts_whitespace_only_text_as_missing(self) -> None:
+        frame = pd.DataFrame({"segment": ["A", " ", "B", "A"]})
+        suggestion = suggest_dashboard(frame)[0]
+        self.assertEqual(suggestion.kind, "missingness")
+        chart = build_chart_data(frame, suggestion)
+        self.assertEqual(
+            chart.to_dict(orient="records"),
+            [{"column": "segment", "missing_percent": 25.0}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
