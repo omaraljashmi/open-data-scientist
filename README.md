@@ -3,7 +3,7 @@
 [![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
 [![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
 
-Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided dashboards, visual queries, and SQL optimization guidance—without a paid API.
+Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
 **[Try the live demo →](https://open-data-scientist-omar.streamlit.app)**
 
@@ -75,6 +75,18 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Downloads the current cleaned CSV and a reproducible JSON recipe with source hash, ordered operations, parameters, and evidence
 - Runs locally with deterministic rules and no paid API
 
+### Milestone 6: Dashboard Studio
+
+- Starts with a useful four-card layout while keeping the earlier guided recommendation mode
+- Builds editable KPI cards, category bars, time trends, scatter plots, and numeric distributions
+- Supports row counts, totals, averages, medians, and distinct counts with visual column controls
+- Applies up to five categorical, numeric-range, or date-range filters to every card
+- Renames, changes, reorders, adds, and removes cards in a responsive two-column canvas
+- Shows the exact audit table and plain-language calculation behind every result
+- Saves and reloads validated layout JSON without embedding the source dataset
+- Exports a standalone responsive HTML dashboard with Plotly included for offline viewing
+- Runs locally with open-source libraries and no paid API
+
 ## Quick start
 
 ```bash
@@ -98,12 +110,14 @@ open-data-scientist/
 │   ├── cleaning.py            # Review-first cleaning recommendations and replay
 │   ├── profiler.py            # Profiling and quality rules
 │   ├── dashboard.py           # Chart inference and preparation
+│   ├── dashboard_studio.py    # Custom cards, global filters, validation, and HTML export
 │   ├── query_builder.py       # Safe visual SQL generation and execution
 │   ├── sql_coach.py           # Read-only SQL explanation and plan review
 │   └── reporting.py           # Downloadable report generation
 ├── tests/
 │   ├── test_cleaning.py       # Cleaning safety, replay, and recipe tests
 │   ├── test_profiler.py       # Profiling and dashboard tests
+│   ├── test_dashboard_studio.py # Dashboard calculations, filters, config, and export tests
 │   ├── test_query_builder.py  # Query generation and security tests
 │   └── test_sql_coach.py      # SQL safety, explanation, and plan tests
 ├── examples/                  # Safe sample data
@@ -128,13 +142,13 @@ python -m unittest discover -s tests -v
 - [ ] Milestone 3.1 — OR filter groups and multi-file joins
 - [x] Milestone 4 — SQL explanation and optimization assistant
 - [x] Milestone 5 — Review-first Data Cleaning Studio with undo and recipes
-- [ ] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
+- [x] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
 - [ ] Milestone 7 — Optional local LLM and agent activity log
 - [ ] Milestone 8 — CLI, Docker image, demo, and contributor documentation
 
 ## Privacy
 
-ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model. Cleaning operations are deterministic, previewed, and replayed locally without overwriting the upload. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the query result.
+ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model. Cleaning operations are deterministic, previewed, and replayed locally without overwriting the upload. Dashboard layout JSON contains controls but no source rows; the optional standalone HTML export intentionally contains the filtered results needed to view its cards offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the query result.
 
 ## License
 
