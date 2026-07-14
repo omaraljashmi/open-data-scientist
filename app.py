@@ -15,6 +15,8 @@ from pandas.api.types import (
 from ods import (
     AggregateRule,
     ChartSuggestion,
+    CleaningAction,
+    CleaningError,
     DatasetLoadError,
     FilterRule,
     INTENTS,
@@ -22,15 +24,19 @@ from ods import (
     QuerySpec,
     SqlCoachError,
     analyze_query,
+    apply_cleaning_actions,
     build_chart_data,
+    build_cleaning_recipe,
     build_markdown_report,
     build_query,
     execute_query,
     infer_column_semantics,
     load_dataset,
     profile_dataset,
+    replay_cleaning_batches,
     roles_from_mapping,
     suggest_dashboard,
+    suggest_cleaning_actions,
 )
 
 
@@ -72,6 +78,25 @@ SUMMARY_CALCULATIONS = {
     "Minimum": "min",
     "Maximum": "max",
 }
+
+
+def get_cleaning_state(dataset_key: str) -> dict[str, object]:
+    """Return the action history and preview for one uploaded file."""
+    state_key = f"cleaning-state-{dataset_key}"
+    state = st.session_state.get(state_key)
+    if not isinstance(state, dict) or "batches" not in state:
+        state = {"batches": [], "preview": None}
+        st.session_state[state_key] = state
+    return state
+
+
+def cleaning_history_fingerprint(batches: list[tuple[CleaningAction, ...]]) -> str:
+    """Create a stable downstream cache key for the active cleaned dataset."""
+    serialized = tuple(
+        tuple((action.action_id, action.parameters) for action in batch)
+        for batch in batches
+    )
+    return sha256(repr(serialized).encode()).hexdigest()[:10]
 
 
 def format_bytes(size: int) -> str:
@@ -534,6 +559,233 @@ def render_sql_coach(dataframe: pd.DataFrame, dataset_key: str) -> None:
         )
 
 
+def render_cleaning_studio(
+    original: pd.DataFrame,
+    current: pd.DataFrame,
+    state: dict[str, object],
+    dataset_key: str,
+    source_sha256: str,
+    filename: str,
+) -> None:
+    """Render review, preview, apply, undo, reset, and export controls."""
+    st.subheader("Data Cleaning Studio")
+    st.caption(
+        "Review deterministic fixes before they touch the working dataset. Every operation shows its "
+        "evidence, requires an explicit preview and Apply, and remains reproducible from the source upload."
+    )
+
+    batches = state.get("batches", [])
+    if not isinstance(batches, list):
+        batches = []
+        state["batches"] = batches
+    applied_actions = [action for batch in batches for action in batch]
+    original_profile = profile_dataset(original)
+    current_profile = profile_dataset(current)
+    history_key = cleaning_history_fingerprint(batches)
+
+    metrics = st.columns(4)
+    score_delta = current_profile.health_score - original_profile.health_score
+    metrics[0].metric(
+        "Current quality score",
+        f"{current_profile.health_score}/100",
+        delta=f"{score_delta:+d} from upload" if score_delta else "No score change",
+    )
+    metrics[1].metric(
+        "Current rows",
+        f"{current_profile.rows:,}",
+        delta=f"{current_profile.rows - original_profile.rows:+,}",
+    )
+    metrics[2].metric(
+        "Current columns",
+        f"{current_profile.columns:,}",
+        delta=f"{current_profile.columns - original_profile.columns:+,}",
+    )
+    metrics[3].metric("Applied fixes", f"{len(applied_actions):,}")
+    st.caption(
+        "The score measures missingness, exact duplicates, and constant columns. A truthful type or "
+        "format correction may improve trust without changing the score."
+    )
+
+    controls = st.columns([1, 1, 4])
+    if controls[0].button(
+        "Undo last batch",
+        disabled=not batches,
+        key=f"cleaning-undo-{dataset_key}-{history_key}",
+    ):
+        batches.pop()
+        state["preview"] = None
+        st.rerun()
+    if controls[1].button(
+        "Reset all",
+        disabled=not batches,
+        key=f"cleaning-reset-{dataset_key}-{history_key}",
+    ):
+        batches.clear()
+        state["preview"] = None
+        st.rerun()
+
+    if applied_actions:
+        with st.expander(f"Applied history · {len(applied_actions)} fixes"):
+            for index, action in enumerate(applied_actions, start=1):
+                location = f" · `{action.column}`" if action.column else ""
+                st.markdown(
+                    f"{index}. **{action.title}**{location} — {action.evidence}"
+                )
+
+    try:
+        suggestions = suggest_cleaning_actions(current)
+    except CleaningError as exc:
+        st.error(str(exc))
+        suggestions = ()
+
+    st.markdown("#### 1. Review suggested fixes")
+    if not suggestions:
+        st.success(
+            "No conservative cleaning fixes remain. Domain-specific rules may still be needed."
+        )
+    else:
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Confidence": action.confidence.title(),
+                        "Suggested fix": action.title,
+                        "Estimated impact": (
+                            f"{action.affected_rows:,} rows "
+                            f"({action.affected_percent:.1f}%)"
+                        ),
+                        "Evidence": action.evidence,
+                    }
+                    for action in suggestions
+                ]
+            ),
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    action_lookup = {action.action_id: action for action in suggestions}
+    selected_ids = st.multiselect(
+        "Choose fixes to preview",
+        list(action_lookup),
+        default=[],
+        format_func=lambda action_id: (
+            f"{action_lookup[action_id].confidence.title()} confidence · "
+            f"{action_lookup[action_id].title}"
+        ),
+        help="Nothing is selected automatically. Drop-column fixes cannot be combined with other fixes for the same column.",
+        key=f"cleaning-selection-{dataset_key}-{history_key}",
+    )
+    selected_actions = tuple(action_lookup[action_id] for action_id in selected_ids)
+    preview_signature = sha256(
+        repr((history_key, tuple(selected_ids))).encode()
+    ).hexdigest()
+
+    if selected_actions:
+        with st.expander("Selected assumptions", expanded=True):
+            for action in selected_actions:
+                st.markdown(
+                    f"- **{action.title}** — {action.recommendation} "
+                    f"({action.affected_rows:,} estimated rows)"
+                )
+
+    if st.button(
+        "Preview selected fixes",
+        type="primary",
+        disabled=not selected_actions,
+        key=f"cleaning-preview-{dataset_key}-{history_key}",
+    ):
+        try:
+            preview_frame = apply_cleaning_actions(current, selected_actions)
+            state["preview"] = {
+                "signature": preview_signature,
+                "dataframe": preview_frame,
+                "actions": selected_actions,
+            }
+        except CleaningError as exc:
+            state["preview"] = None
+            st.error(str(exc))
+
+    preview = state.get("preview")
+    if isinstance(preview, dict) and preview.get("signature") != preview_signature:
+        st.info("The selected fixes changed. Preview them again before applying.")
+        preview = None
+
+    if isinstance(preview, dict):
+        preview_frame = preview["dataframe"]
+        preview_profile = profile_dataset(preview_frame)
+        st.markdown("#### 2. Verify the before/after preview")
+        impact = st.columns(4)
+        impact[0].metric(
+            "Quality score",
+            f"{preview_profile.health_score}/100",
+            delta=f"{preview_profile.health_score - current_profile.health_score:+d}",
+        )
+        impact[1].metric(
+            "Rows",
+            f"{preview_profile.rows:,}",
+            delta=f"{preview_profile.rows - current_profile.rows:+,}",
+        )
+        impact[2].metric(
+            "Columns",
+            f"{preview_profile.columns:,}",
+            delta=f"{preview_profile.columns - current_profile.columns:+,}",
+        )
+        changed_types = sum(
+            str(current.dtypes[column]) != str(preview_frame.dtypes[column])
+            for column in current.columns.intersection(preview_frame.columns)
+        )
+        impact[3].metric("Changed data types", f"{changed_types:,}")
+
+        sample_columns = st.columns(2)
+        with sample_columns[0]:
+            st.markdown("**Before · first 12 rows**")
+            st.dataframe(current.head(12), use_container_width=True, hide_index=True)
+        with sample_columns[1]:
+            st.markdown("**After · first 12 rows**")
+            st.dataframe(preview_frame.head(12), use_container_width=True, hide_index=True)
+
+        st.warning(
+            "Apply updates the working dataset used by the dashboard, Visual SQL, SQL Coach, "
+            "profiles, statistics, and downloads. The original upload remains available through Reset."
+        )
+        if st.button(
+            "Apply verified fixes",
+            type="primary",
+            key=f"cleaning-apply-{dataset_key}-{history_key}",
+        ):
+            batches.append(tuple(preview["actions"]))
+            state["preview"] = None
+            st.rerun()
+
+    st.markdown("#### 3. Export the current result")
+    export_columns = st.columns(2)
+    base_name = filename.rsplit(".", 1)[0]
+    export_columns[0].download_button(
+        "Download current cleaned CSV",
+        data=current.to_csv(index=False).encode("utf-8"),
+        file_name=f"{base_name}-cleaned.csv",
+        mime="text/csv",
+        key=f"cleaning-download-data-{dataset_key}-{history_key}",
+    )
+    recipe = build_cleaning_recipe(
+        filename,
+        source_sha256,
+        original,
+        current,
+        batches,
+    )
+    export_columns[1].download_button(
+        "Download cleaning recipe",
+        data=recipe.encode("utf-8"),
+        file_name=f"{base_name}-cleaning-recipe.json",
+        mime="application/json",
+        key=f"cleaning-download-recipe-{dataset_key}-{history_key}",
+    )
+    st.caption(
+        "The recipe records the source hash, ordered operations, parameters, evidence, and before/after schema."
+    )
+
+
 st.set_page_config(
     page_title="Open Data Scientist",
     page_icon="🔎",
@@ -558,7 +810,7 @@ st.markdown(
     </style>
     <div class="ods-kicker">OPEN-SOURCE · LOCAL-FIRST · NO PAID API</div>
     <h1 class="ods-title">Turn raw files into a <span>clear data story.</span></h1>
-    <p class="ods-subtitle">Upload a CSV or Excel file. ODS profiles the dataset, identifies quality risks, summarizes its structure, and creates a downloadable report—all locally.</p>
+    <p class="ods-subtitle">Upload a CSV or Excel file. ODS profiles, cleans, visualizes, and queries the dataset with transparent local rules and downloadable evidence.</p>
     """,
     unsafe_allow_html=True,
 )
@@ -575,13 +827,38 @@ if uploaded_file is None:
 
 try:
     uploaded_bytes = uploaded_file.getvalue()
-    dataframe = load_dataset(uploaded_file.name, uploaded_bytes)
-    profile = profile_dataset(dataframe)
+    original_dataframe = load_dataset(uploaded_file.name, uploaded_bytes)
 except DatasetLoadError as exc:
     st.error(str(exc))
     st.stop()
 
+source_sha256 = sha256(uploaded_bytes).hexdigest()
+source_key = source_sha256[:12]
+cleaning_state = get_cleaning_state(source_key)
+cleaning_batches = cleaning_state.get("batches", [])
+if not isinstance(cleaning_batches, list):
+    cleaning_batches = []
+    cleaning_state["batches"] = cleaning_batches
+try:
+    dataframe = replay_cleaning_batches(original_dataframe, cleaning_batches)
+except CleaningError as exc:
+    st.error(f"The saved cleaning history could not be replayed: {exc}")
+    cleaning_batches.clear()
+    cleaning_state["preview"] = None
+    dataframe = original_dataframe.copy(deep=True)
+
+profile = profile_dataset(dataframe)
+active_dataset_key = (
+    f"{source_key}-{cleaning_history_fingerprint(cleaning_batches)}"
+)
+
 st.success(f"Loaded {uploaded_file.name} successfully.")
+if cleaning_batches:
+    applied_count = sum(len(batch) for batch in cleaning_batches)
+    st.caption(
+        f"The working dataset includes {applied_count:,} applied cleaning "
+        f"fix{'es' if applied_count != 1 else ''}. Reset remains available in Clean data."
+    )
 metric_columns = st.columns(6)
 metrics = [
     ("Rows", f"{profile.rows:,}"),
@@ -594,9 +871,10 @@ metrics = [
 for container, (label, value) in zip(metric_columns, metrics, strict=True):
     container.metric(label, value)
 
-overview_tab, dashboard_tab, query_tab, coach_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
+overview_tab, cleaning_tab, dashboard_tab, query_tab, coach_tab, columns_tab, quality_tab, statistics_tab = st.tabs(
     [
         "Data preview",
+        "Clean data",
         "Smart dashboard",
         "Visual SQL",
         "SQL Coach",
@@ -609,7 +887,17 @@ overview_tab, dashboard_tab, query_tab, coach_tab, columns_tab, quality_tab, sta
 with overview_tab:
     st.subheader("Data preview")
     st.dataframe(dataframe.head(100), use_container_width=True, hide_index=True)
-    st.caption("Showing up to the first 100 rows.")
+    st.caption("Showing up to the first 100 rows from the current working dataset.")
+
+with cleaning_tab:
+    render_cleaning_studio(
+        original_dataframe,
+        dataframe,
+        cleaning_state,
+        source_key,
+        source_sha256,
+        uploaded_file.name,
+    )
 
 with dashboard_tab:
     st.subheader("Smart guided dashboard")
@@ -638,7 +926,7 @@ with dashboard_tab:
                 ),
                 "Why ODS chose it": st.column_config.TextColumn(width="large"),
             },
-            key=f"role-review-{sha256(uploaded_bytes).hexdigest()[:12]}",
+            key=f"role-review-{active_dataset_key}",
         )
 
     st.markdown("#### 2. Choose the question")
@@ -692,14 +980,14 @@ with dashboard_tab:
 with query_tab:
     render_visual_sql_builder(
         dataframe,
-        sha256(uploaded_bytes).hexdigest()[:12],
+        active_dataset_key,
         uploaded_file.name,
     )
 
 with coach_tab:
     render_sql_coach(
         dataframe,
-        sha256(uploaded_bytes).hexdigest()[:12],
+        active_dataset_key,
     )
 
 with columns_tab:
