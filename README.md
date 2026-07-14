@@ -3,7 +3,7 @@
 [![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
 [![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
 
-Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, guided dashboards, visual queries, and SQL optimization guidance—without a paid API.
+Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
 **[Try the live demo →](https://open-data-scientist-omar.streamlit.app)**
 
@@ -62,6 +62,19 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Blocks writes, database commands, multiple statements, unknown tables, and external file readers
 - Runs locally with transparent rules and no paid API
 
+### Milestone 5: Data Cleaning Studio
+
+- Detects exact duplicates, surrounding whitespace, blank text, inconsistent category casing, suspicious data types, missing values, constant columns, and robust IQR outliers
+- Separates evidence from assumptions and gives every recommendation a visible confidence level
+- Selects nothing automatically and requires a before/after preview before Apply
+- Converts only unambiguous numeric and date text while protecting identifier-like and leading-zero codes
+- Uses explicit median or missing-category fills only for limited missingness and leaves ambiguous cases for domain review
+- Flags possible outliers in a new Boolean column instead of deleting or capping source values
+- Applies verified fixes to dashboards, Visual SQL, SQL Coach, profiles, statistics, reports, and downloads
+- Supports multi-batch undo and a full reset without overwriting the uploaded source
+- Downloads the current cleaned CSV and a reproducible JSON recipe with source hash, ordered operations, parameters, and evidence
+- Runs locally with deterministic rules and no paid API
+
 ## Quick start
 
 ```bash
@@ -82,12 +95,14 @@ open-data-scientist/
 ├── app.py                     # Streamlit interface
 ├── ods/
 │   ├── loader.py              # CSV and Excel ingestion
+│   ├── cleaning.py            # Review-first cleaning recommendations and replay
 │   ├── profiler.py            # Profiling and quality rules
 │   ├── dashboard.py           # Chart inference and preparation
 │   ├── query_builder.py       # Safe visual SQL generation and execution
 │   ├── sql_coach.py           # Read-only SQL explanation and plan review
 │   └── reporting.py           # Downloadable report generation
 ├── tests/
+│   ├── test_cleaning.py       # Cleaning safety, replay, and recipe tests
 │   ├── test_profiler.py       # Profiling and dashboard tests
 │   ├── test_query_builder.py  # Query generation and security tests
 │   └── test_sql_coach.py      # SQL safety, explanation, and plan tests
@@ -112,12 +127,14 @@ python -m unittest discover -s tests -v
 - [x] Milestone 3 — Visual SQL query builder with DuckDB
 - [ ] Milestone 3.1 — OR filter groups and multi-file joins
 - [x] Milestone 4 — SQL explanation and optimization assistant
-- [ ] Milestone 5 — Optional local LLM and agent activity log
-- [ ] Milestone 6 — CLI, Docker image, demo, and contributor documentation
+- [x] Milestone 5 — Review-first Data Cleaning Studio with undo and recipes
+- [ ] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
+- [ ] Milestone 7 — Optional local LLM and agent activity log
+- [ ] Milestone 8 — CLI, Docker image, demo, and contributor documentation
 
 ## Privacy
 
-ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the query result.
+ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model. Cleaning operations are deterministic, previewed, and replayed locally without overwriting the upload. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the query result.
 
 ## License
 
