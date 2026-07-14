@@ -3,7 +3,7 @@
 [![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
 [![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
 
-Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable data profiles, quality findings, statistics, and downloadable reports—without a paid API.
+Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, guided dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
 **[Try the live demo →](https://open-data-scientist-omar.streamlit.app)**
 
@@ -49,6 +49,19 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Previews results and downloads the complete result as CSV
 - Runs locally with open-source libraries and no paid API
 
+### Milestone 4: Local SQL Coach
+
+- Explains Visual SQL or pasted DuckDB queries clause by clause in plain English
+- Uses SQLGlot for DuckDB-aware parsing, formatting, and syntax-tree inspection
+- Uses DuckDB `EXPLAIN` to show the real physical plan without executing the query result
+- Translates physical-plan operators such as scans, filters, joins, grouping, sorting, and limits
+- Detects correctness risks including unsafe NULL comparisons and `NOT IN` subqueries
+- Detects performance and maintainability risks including broad projections, unbounded results, leading wildcards, function-wrapped filters, expensive sorts, and Cartesian joins
+- Uses the uploaded dataset to identify nearly unique grouping keys
+- Produces a conservative clean rewrite and never silently applies changes that could alter results
+- Blocks writes, database commands, multiple statements, unknown tables, and external file readers
+- Runs locally with transparent rules and no paid API
+
 ## Quick start
 
 ```bash
@@ -72,10 +85,12 @@ open-data-scientist/
 │   ├── profiler.py            # Profiling and quality rules
 │   ├── dashboard.py           # Chart inference and preparation
 │   ├── query_builder.py       # Safe visual SQL generation and execution
+│   ├── sql_coach.py           # Read-only SQL explanation and plan review
 │   └── reporting.py           # Downloadable report generation
 ├── tests/
 │   ├── test_profiler.py       # Profiling and dashboard tests
-│   └── test_query_builder.py  # Query generation and security tests
+│   ├── test_query_builder.py  # Query generation and security tests
+│   └── test_sql_coach.py      # SQL safety, explanation, and plan tests
 ├── examples/                  # Safe sample data
 ├── requirements.txt
 └── LICENSE
@@ -96,13 +111,13 @@ python -m unittest discover -s tests -v
 - [x] Milestone 2.1 — Guided semantic roles and auditable chart calculations
 - [x] Milestone 3 — Visual SQL query builder with DuckDB
 - [ ] Milestone 3.1 — OR filter groups and multi-file joins
-- [ ] Milestone 4 — SQL explanation and optimization assistant
+- [x] Milestone 4 — SQL explanation and optimization assistant
 - [ ] Milestone 5 — Optional local LLM and agent activity log
 - [ ] Milestone 6 — CLI, Docker image, demo, and contributor documentation
 
 ## Privacy
 
-ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model.
+ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the query result.
 
 ## License
 
