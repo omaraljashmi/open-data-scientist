@@ -3,7 +3,7 @@
 [![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
 [![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
 [![CI](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml/badge.svg)](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml)
-[![Release candidate](https://img.shields.io/badge/release-v1.0.0--rc.1-56c9ff)](docs/releases/v1.0.0-rc.1.md)
+[![Stable release](https://img.shields.io/badge/release-v1.0.0-56c9ff)](docs/releases/v1.0.0.md)
 
 Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
@@ -107,11 +107,11 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Requires nine unsafe or malformed input families to fail with understandable messages
 - Fixes single-column CSV detection and rejects blank or duplicate source headers before silent renaming
 - Adds privacy-safe bug reports, feature requests, and pull-request verification templates
-- Documents the stable-promotion evidence and keeps `v1.0.0` blocked until CI, Docker, and hosted checks pass
+- Records the verified Python 3.11/3.12 CI, Docker health, and hosted sample-walkthrough evidence
 
 ## Quick start
 
-The release candidate is verified on Python 3.11 and 3.12.
+The stable release is verified on Python 3.11 and 3.12.
 
 ```bash
 git clone https://github.com/omaraljashmi/open-data-scientist.git
@@ -122,7 +122,7 @@ python -m pip install -r requirements.lock
 python -m streamlit run app.py
 ```
 
-Then click **Try sample dataset** or upload a supported file. Use `requirements.txt` instead when you intentionally want the newest compatible dependencies rather than the exact release-candidate environment.
+Then click **Try sample dataset** or upload a supported file. Use `requirements.txt` instead when you intentionally want the newest compatible dependencies rather than the exact stable-release environment.
 
 ### Docker
 
@@ -142,7 +142,7 @@ Open `http://localhost:8501`. The image includes a health check at `/_stcore/hea
 | Columns | 500 |
 | Expanded XLSX content | 250 MB |
 
-These are deliberate release-candidate guardrails, not claims that every file at the limit will use the same memory or runtime. See [performance and resource details](docs/PERFORMANCE.md).
+These are deliberate stable-release guardrails, not claims that every file at the limit will use the same memory or runtime. See [performance and resource details](docs/PERFORMANCE.md).
 
 ## Project structure
 
@@ -172,7 +172,7 @@ open-data-scientist/
 ├── docs/                      # Performance, validation, checklists, and release notes
 ├── examples/                  # Safe sample data
 ├── requirements.txt           # Supported dependency ranges
-├── requirements.lock          # Exact release-candidate environment
+├── requirements.lock          # Exact stable-release environment
 ├── Dockerfile
 └── LICENSE
 ```
@@ -201,7 +201,7 @@ GitHub Actions runs the suite and validation matrix on Python 3.11 and 3.12 and 
 - [x] Milestone 5 — Review-first Data Cleaning Studio with undo and recipes
 - [x] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
 - [x] Milestone 6.1 — Release candidate hardening, CI, privacy, guardrails, and Docker
-- [ ] Milestone 6.2 — Multi-format validation and stable `v1.0.0` promotion
+- [x] Milestone 6.2 — Multi-format validation and stable `v1.0.0` promotion
 - [ ] Milestone 7 — Optional local LLM and agent activity log
 - [ ] Milestone 8 — CLI distribution, richer demo assets, and contributor expansion
 

@@ -4,12 +4,14 @@ All notable changes to Open Data Scientist are documented here.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-15
+
 ### Added
 
 - Deterministic stable-release matrix covering seven representative CSV, XLSX, and legacy XLS inputs across the complete product workflow.
 - Nine expected-rejection cases for unsupported, empty, malformed, unsafe, ambiguous-header, and oversized files.
 - Privacy-safe GitHub bug-report, feature-request, and pull-request templates.
-- Stable-promotion checklist, draft `v1.0.0` notes, and validation documentation.
+- Stable-promotion checklist, finalized `v1.0.0` notes, and validation documentation.
 
 ### Fixed
 
@@ -43,5 +45,6 @@ All notable changes to Open Data Scientist are documented here.
 
 - Completed the explainable profiler, smart dashboards, Visual SQL, SQL Coach, Data Cleaning Studio, and Dashboard Studio milestones.
 
-[Unreleased]: https://github.com/omaraljashmi/open-data-scientist/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/omaraljashmi/open-data-scientist/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/omaraljashmi/open-data-scientist/releases/tag/v1.0.0
 [1.0.0-rc.1]: https://github.com/omaraljashmi/open-data-scientist/releases/tag/v1.0.0-rc.1

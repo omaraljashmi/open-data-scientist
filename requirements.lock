@@ -1,4 +1,4 @@
-# Generated with uv for the v1.0.0-rc.1 release candidate by resolving
+# Generated with uv for the v1.0.0 stable release by resolving
 # requirements.txt separately for the Python 3.11 and 3.12 CI targets.
 altair==6.2.2
     # via streamlit

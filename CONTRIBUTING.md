@@ -10,7 +10,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.lock
 ```
 
-`requirements.txt` contains supported dependency ranges. `requirements.lock` records the exact release-candidate environment.
+`requirements.txt` contains supported dependency ranges. `requirements.lock` records the exact stable-release environment.
 
 ## Before opening a pull request
 

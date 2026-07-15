@@ -2,7 +2,7 @@
 
 ## Supported version
 
-Security fixes are prepared for the current release candidate and the latest code on `main`. Earlier milestone snapshots are not maintained as separate supported releases.
+Security fixes are prepared for the latest stable release and the latest code on `main`. Earlier milestone snapshots and prereleases are not maintained as separate supported releases.
 
 ## Reporting a vulnerability
 

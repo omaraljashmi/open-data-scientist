@@ -1,6 +1,6 @@
 # Privacy Notice
 
-Effective for Open Data Scientist `v1.0.0-rc.1`.
+Effective for Open Data Scientist `v1.0.0`.
 
 Open Data Scientist (ODS) is designed to analyze tabular data without sending it to a paid API or external AI model. The privacy boundary depends on where you run it.
 

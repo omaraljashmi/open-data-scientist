@@ -11,11 +11,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReleaseMetadataTests(unittest.TestCase):
-    def test_version_and_lockfile_match_the_release_candidate(self) -> None:
-        self.assertEqual(__version__, "1.0.0rc1")
-        self.assertEqual(__release__, "v1.0.0-rc.1")
+    def test_version_and_lockfile_match_the_stable_release(self) -> None:
+        self.assertEqual(__version__, "1.0.0")
+        self.assertEqual(__release__, "v1.0.0")
 
         lock = (PROJECT_ROOT / "requirements.lock").read_text(encoding="utf-8")
+        self.assertIn("v1.0.0 stable release", lock)
         for dependency in (
             "pandas==",
             "streamlit==",

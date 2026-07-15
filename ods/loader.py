@@ -59,7 +59,7 @@ def load_dataset(
         raise DatasetLoadError("The uploaded file is empty.")
     if len(content) > limits.max_upload_bytes:
         raise DatasetLoadError(
-            f"{safe_name} is {_format_bytes(len(content))}; the release-candidate "
+            f"{safe_name} is {_format_bytes(len(content))}; the default "
             f"limit is {_format_bytes(limits.max_upload_bytes)} per file. "
             "Reduce the file or run ODS locally with a reviewed higher limit."
         )
@@ -210,12 +210,12 @@ def _validate_dataframe(
         )
     if rows > limits.max_rows:
         raise DatasetLoadError(
-            f"The dataset has {rows:,} rows; the release-candidate limit is "
+            f"The dataset has {rows:,} rows; the default limit is "
             f"{limits.max_rows:,}. Filter or aggregate the file before uploading it."
         )
     if columns > limits.max_columns:
         raise DatasetLoadError(
-            f"The dataset has {columns:,} columns; the release-candidate limit is "
+            f"The dataset has {columns:,} columns; the default limit is "
             f"{limits.max_columns:,}. Keep only the fields needed for analysis."
         )
 
