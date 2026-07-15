@@ -1,6 +1,7 @@
 """Core analysis utilities for Open Data Scientist."""
 
-from .loader import DatasetLoadError, load_dataset
+from .version import __release__, __version__
+from .loader import DEFAULT_LIMITS, DatasetLimits, DatasetLoadError, load_dataset
 from .cleaning import (
     CleaningAction,
     CleaningError,
@@ -71,7 +72,9 @@ from .reporting import build_markdown_report
 
 __all__ = [
     "DatasetLoadError",
+    "DatasetLimits",
     "DatasetProfile",
+    "DEFAULT_LIMITS",
     "CleaningAction",
     "CleaningError",
     "AggregateRule",
@@ -130,4 +133,6 @@ __all__ = [
     "suggest_dashboard",
     "suggest_cleaning_actions",
     "validate_dashboard_config",
+    "__release__",
+    "__version__",
 ]

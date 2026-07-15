@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from hashlib import sha256
+from pathlib import Path
 import re
 
 import pandas as pd
@@ -16,6 +17,7 @@ from pandas.api.types import (
 
 from ods import (
     AggregateRule,
+    DEFAULT_LIMITS,
     DashboardCard,
     DashboardConfig,
     DashboardFilter,
@@ -58,6 +60,7 @@ from ods import (
     suggest_dashboard,
     suggest_cleaning_actions,
     validate_dashboard_config,
+    __release__,
 )
 
 
@@ -124,6 +127,7 @@ STUDIO_DATE_GRAINS = {
     "Quarter": "quarter",
     "Year": "year",
 }
+SAMPLE_DATA_PATH = Path(__file__).resolve().parent / "examples" / "sample_customers.csv"
 
 
 def get_cleaning_state(dataset_key: str) -> dict[str, object]:
@@ -171,7 +175,7 @@ def render_chart(dataframe, suggestion: ChartSuggestion) -> None:
 
     st.caption(f"Recommendation confidence: {suggestion.confidence:.0%}")
     with st.expander("Verify calculation"):
-        st.dataframe(chart_data, use_container_width=True, hide_index=True)
+        st.dataframe(chart_data, width="stretch", hide_index=True)
         st.caption(
             f"This is the exact {len(chart_data):,}-row summary used by the chart. "
             "No hidden model or paid API is involved."
@@ -454,7 +458,7 @@ def render_visual_sql_builder(
         result_metrics = st.columns(2)
         result_metrics[0].metric("Result rows", f"{len(result_frame):,}")
         result_metrics[1].metric("Result columns", f"{len(result_frame.columns):,}")
-        st.dataframe(result_frame.head(500), use_container_width=True, hide_index=True)
+        st.dataframe(result_frame.head(500), width="stretch", hide_index=True)
         if len(result_frame) > 500:
             st.caption("Previewing the first 500 rows; the download includes the full result.")
         download_name = filename.rsplit(".", 1)[0] + "-query-result.csv"
@@ -594,7 +598,7 @@ def render_sql_coach(dataframe: pd.DataFrame, dataset_key: str) -> None:
                     for step in analysis.plan_steps
                 ]
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
     with st.expander("Raw EXPLAIN plan"):
@@ -705,7 +709,7 @@ def render_cleaning_studio(
                     for action in suggestions
                 ]
             ),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -785,10 +789,10 @@ def render_cleaning_studio(
         sample_columns = st.columns(2)
         with sample_columns[0]:
             st.markdown("**Before · first 12 rows**")
-            st.dataframe(current.head(12), use_container_width=True, hide_index=True)
+            st.dataframe(current.head(12), width="stretch", hide_index=True)
         with sample_columns[1]:
             st.markdown("**After · first 12 rows**")
-            st.dataframe(preview_frame.head(12), use_container_width=True, hide_index=True)
+            st.dataframe(preview_frame.head(12), width="stretch", hide_index=True)
 
         st.warning(
             "Apply updates the working dataset used by the dashboard, Visual SQL, SQL Coach, "
@@ -1297,7 +1301,7 @@ def render_dashboard_result_card(
         elif result.figure is not None:
             st.plotly_chart(
                 result.figure,
-                use_container_width=True,
+                width="stretch",
                 config={"displaylogo": False, "responsive": True},
             )
 
@@ -1305,7 +1309,7 @@ def render_dashboard_result_card(
         st.caption(result.calculation)
         st.dataframe(
             result.audit_table.head(500),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
         if len(result.audit_table) > 500:
@@ -1547,7 +1551,7 @@ def render_guided_dashboard(dataframe: pd.DataFrame, dataset_key: str) -> None:
         )
         reviewed_table = st.data_editor(
             role_review,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             disabled=["Column", "Format", "Confidence", "Why ODS chose it"],
             column_config={
@@ -1641,31 +1645,68 @@ st.markdown(
     .ods-score strong { color: #6ee7ff; font-size: 2rem; }
     [data-testid="stVerticalBlockBorderWrapper"] { border-color: rgba(101, 209, 255, .17); background: #0b1b2d; }
     </style>
-    <div class="ods-kicker">OPEN-SOURCE · LOCAL-FIRST · NO PAID API</div>
+    <div class="ods-kicker">OPEN-SOURCE · LOCAL-FIRST · NO PAID API · {release}</div>
     <h1 class="ods-title">Turn raw files into a <span>clear data story.</span></h1>
     <p class="ods-subtitle">Upload a CSV or Excel file. ODS profiles, cleans, visualizes, and queries the dataset with transparent local rules and downloadable evidence.</p>
-    """,
+    """.replace("{release}", __release__),
     unsafe_allow_html=True,
+)
+
+st.info(
+    "**Privacy before you upload:** on the public demo, your file is transferred to "
+    "the hosted Streamlit session and processed in memory. ODS does not send it to an "
+    "AI model or paid API. Run ODS locally for confidential or regulated data.",
+    icon="🔒",
 )
 
 uploaded_file = st.file_uploader(
     "Choose a dataset",
     type=["csv", "xlsx", "xls"],
-    help="ODS processes the upload in memory and does not require a paid API.",
+    help=(
+        "ODS processes the upload in memory and does not require a paid API. "
+        f"Release-candidate limit: {DEFAULT_LIMITS.max_upload_bytes // (1024 * 1024)} MB, "
+        f"{DEFAULT_LIMITS.max_rows:,} rows, and {DEFAULT_LIMITS.max_columns:,} columns."
+    ),
 )
 
-if uploaded_file is None:
-    st.info("Upload a CSV or Excel file to generate your first automated profile.")
+sample_controls = st.columns([1, 4])
+sample_requested = sample_controls[0].button(
+    "Try sample dataset",
+    type="primary",
+    width="stretch",
+    disabled=uploaded_file is not None,
+    key="try-sample-dataset",
+)
+sample_controls[1].caption(
+    "No file ready? Load the included customer dataset in one click, then follow the guided walkthrough."
+)
+if sample_requested:
+    st.session_state["ods-use-sample-dataset"] = True
+
+source_is_sample = False
+if uploaded_file is not None:
+    source_name = Path(uploaded_file.name).name
+    source_bytes = uploaded_file.getvalue()
+    st.session_state["ods-use-sample-dataset"] = False
+elif st.session_state.get("ods-use-sample-dataset", False):
+    source_is_sample = True
+    source_name = SAMPLE_DATA_PATH.name
+    try:
+        source_bytes = SAMPLE_DATA_PATH.read_bytes()
+    except OSError:
+        st.error("The bundled sample dataset is unavailable in this installation.")
+        st.stop()
+else:
+    st.info("Upload a CSV or Excel file, or try the included sample, to start the walkthrough.")
     st.stop()
 
 try:
-    uploaded_bytes = uploaded_file.getvalue()
-    original_dataframe = load_dataset(uploaded_file.name, uploaded_bytes)
+    original_dataframe = load_dataset(source_name, source_bytes)
 except DatasetLoadError as exc:
     st.error(str(exc))
     st.stop()
 
-source_sha256 = sha256(uploaded_bytes).hexdigest()
+source_sha256 = sha256(source_bytes).hexdigest()
 source_key = source_sha256[:12]
 cleaning_state = get_cleaning_state(source_key)
 cleaning_batches = cleaning_state.get("batches", [])
@@ -1680,12 +1721,26 @@ except CleaningError as exc:
     cleaning_state["preview"] = None
     dataframe = original_dataframe.copy(deep=True)
 
-profile = profile_dataset(dataframe)
+try:
+    profile = profile_dataset(dataframe)
+except MemoryError:
+    st.error(
+        "The dataset exceeded available memory during profiling. Reduce its size or run ODS locally with more memory."
+    )
+    st.stop()
 active_dataset_key = (
     f"{source_key}-{cleaning_history_fingerprint(cleaning_batches)}"
 )
 
-st.success(f"Loaded {uploaded_file.name} successfully.")
+st.success(f"Loaded {source_name} successfully.")
+if source_is_sample:
+    with st.expander("Three-minute sample walkthrough", expanded=True):
+        st.markdown(
+            "1. Open **Data → Quality** to see explainable checks.  \n"
+            "2. Open **Dashboard** to explore the starter cards and calculation evidence.  \n"
+            "3. Open **Visual SQL** to build a query with controls, then review it in **SQL Coach**.  \n"
+            "Every result can be reproduced locally without a paid API."
+        )
 if cleaning_batches:
     applied_count = sum(len(batch) for batch in cleaning_batches)
     st.caption(
@@ -1714,7 +1769,7 @@ with data_tab:
     )
     with preview_tab:
         st.subheader("Data preview")
-        st.dataframe(dataframe.head(100), use_container_width=True, hide_index=True)
+        st.dataframe(dataframe.head(100), width="stretch", hide_index=True)
         st.caption(
             "Showing up to the first 100 rows from the current working dataset."
         )
@@ -1736,20 +1791,20 @@ with data_tab:
     with columns_tab:
         st.subheader("Column profile")
         st.dataframe(
-            profile.column_profile, use_container_width=True, hide_index=True
+            profile.column_profile, width="stretch", hide_index=True
         )
     with statistics_tab:
         st.subheader("Numeric statistics")
         if profile.numeric_summary.empty:
             st.info("No numeric columns were detected.")
         else:
-            st.dataframe(profile.numeric_summary, use_container_width=True)
+            st.dataframe(profile.numeric_summary, width="stretch")
 
-    report = build_markdown_report(uploaded_file.name, profile)
+    report = build_markdown_report(source_name, profile)
     st.download_button(
         "Download quality report",
         data=report,
-        file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}-quality-report.md",
+        file_name=f"{source_name.rsplit('.', 1)[0]}-quality-report.md",
         mime="text/markdown",
         type="primary",
         key=f"quality-report-{active_dataset_key}",
@@ -1762,7 +1817,7 @@ with cleaning_tab:
         cleaning_state,
         source_key,
         source_sha256,
-        uploaded_file.name,
+        source_name,
     )
 
 with dashboard_tab:
@@ -1776,7 +1831,7 @@ with dashboard_tab:
         render_dashboard_studio(
             dataframe,
             active_dataset_key,
-            uploaded_file.name,
+            source_name,
         )
     else:
         render_guided_dashboard(dataframe, active_dataset_key)
@@ -1785,7 +1840,7 @@ with query_tab:
     render_visual_sql_builder(
         dataframe,
         active_dataset_key,
-        uploaded_file.name,
+        source_name,
     )
 
 with coach_tab:

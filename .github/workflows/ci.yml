@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --requirement requirements.lock
+          python -m pip check
+      - name: Compile source
+        run: python -m compileall -q app.py ods tests scripts
+      - name: Run test suite
+        run: python -m unittest discover -s tests -v
+      - name: Run release performance check
+        run: python -m scripts.benchmark --rows 25000 --max-seconds 20
+
+  docker:
+    name: Docker smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --tag open-data-scientist:ci .
+      - name: Start and verify app
+        run: |
+          docker run --detach --name ods-ci --publish 8501:8501 open-data-scientist:ci
+          curl --fail --silent --show-error --retry 15 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
+          docker stop ods-ci

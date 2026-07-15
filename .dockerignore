@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.coverage
+.DS_Store
+.env
+.streamlit/secrets.toml
+data/private
+reports

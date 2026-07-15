@@ -2,10 +2,14 @@
 
 [![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
 [![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
+[![CI](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml/badge.svg)](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml)
+[![Release candidate](https://img.shields.io/badge/release-v1.0.0--rc.1-56c9ff)](docs/releases/v1.0.0-rc.1.md)
 
 Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
-**[Try the live demo →](https://open-data-scientist-omar.streamlit.app)**
+**[Try the live demo →](https://open-data-scientist-omar.streamlit.app)** — click **Try sample dataset** for a no-upload walkthrough.
+
+> The public demo processes uploads in a hosted Streamlit session. Do not upload confidential, regulated, personal, or sensitive data; [run ODS locally](#quick-start) instead.
 
 ## Current capabilities
 
@@ -87,18 +91,49 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Exports a standalone responsive HTML dashboard with Plotly included for offline viewing
 - Runs locally with open-source libraries and no paid API
 
+### Milestone 6.1: Release Candidate Hardening
+
+- Adds an in-app privacy boundary and one-click sample walkthrough
+- Enforces clear limits for file size, rows, columns, and expanded XLSX content
+- Returns understandable errors for empty, malformed, binary, encrypted, and oversized inputs
+- Locks the verified dependency graph while retaining supported ranges for development
+- Tests Python 3.11/3.12, Streamlit rendering, representative performance, and Docker health in CI
+- Prepares versioned release notes, changelog, security guidance, contributor documentation, and a release checklist
+
 ## Quick start
+
+The release candidate is verified on Python 3.11 and 3.12.
 
 ```bash
 git clone https://github.com/omaraljashmi/open-data-scientist.git
 cd open-data-scientist
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-streamlit run app.py
+python -m pip install -r requirements.lock
+python -m streamlit run app.py
 ```
 
-Then upload your own dataset or try `examples/sample_customers.csv`.
+Then click **Try sample dataset** or upload a supported file. Use `requirements.txt` instead when you intentionally want the newest compatible dependencies rather than the exact release-candidate environment.
+
+### Docker
+
+```bash
+docker build -t open-data-scientist .
+docker run --rm -p 8501:8501 open-data-scientist
+```
+
+Open `http://localhost:8501`. The image includes a health check at `/_stcore/health`.
+
+### Input envelope
+
+| File boundary | Default |
+|---|---:|
+| CSV, XLSX, or XLS upload | 25 MB |
+| Rows | 250,000 |
+| Columns | 500 |
+| Expanded XLSX content | 250 MB |
+
+These are deliberate release-candidate guardrails, not claims that every file at the limit will use the same memory or runtime. See [performance and resource details](docs/PERFORMANCE.md).
 
 ## Project structure
 
@@ -113,15 +148,22 @@ open-data-scientist/
 │   ├── dashboard_studio.py    # Custom cards, global filters, validation, and HTML export
 │   ├── query_builder.py       # Safe visual SQL generation and execution
 │   ├── sql_coach.py           # Read-only SQL explanation and plan review
-│   └── reporting.py           # Downloadable report generation
+│   ├── reporting.py           # Downloadable report generation
+│   └── version.py             # Release version constants
 ├── tests/
+│   ├── test_app_smoke.py      # Landing page and sample walkthrough
 │   ├── test_cleaning.py       # Cleaning safety, replay, and recipe tests
 │   ├── test_profiler.py       # Profiling and dashboard tests
 │   ├── test_dashboard_studio.py # Dashboard calculations, filters, config, and export tests
 │   ├── test_query_builder.py  # Query generation and security tests
-│   └── test_sql_coach.py      # SQL safety, explanation, and plan tests
+│   ├── test_sql_coach.py      # SQL safety, explanation, and plan tests
+│   └── test_performance.py    # Representative workflow performance gate
+├── scripts/                   # Reproducible benchmark utility
+├── docs/                      # Performance, release checklist, and release notes
 ├── examples/                  # Safe sample data
-├── requirements.txt
+├── requirements.txt           # Supported dependency ranges
+├── requirements.lock          # Exact release-candidate environment
+├── Dockerfile
 └── LICENSE
 ```
 
@@ -130,8 +172,12 @@ open-data-scientist/
 The test suite uses Python's standard library test runner:
 
 ```bash
+python -m compileall -q app.py ods tests scripts
 python -m unittest discover -s tests -v
+python -m scripts.benchmark --rows 100000 --max-seconds 30
 ```
+
+GitHub Actions runs the suite on Python 3.11 and 3.12 and separately builds and health-checks the Docker image.
 
 ## Roadmap
 
@@ -143,12 +189,15 @@ python -m unittest discover -s tests -v
 - [x] Milestone 4 — SQL explanation and optimization assistant
 - [x] Milestone 5 — Review-first Data Cleaning Studio with undo and recipes
 - [x] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
+- [x] Milestone 6.1 — Release candidate hardening, CI, privacy, guardrails, and Docker
 - [ ] Milestone 7 — Optional local LLM and agent activity log
-- [ ] Milestone 8 — CLI, Docker image, demo, and contributor documentation
+- [ ] Milestone 8 — CLI distribution, richer demo assets, and contributor expansion
 
 ## Privacy
 
-ODS processes files inside the Streamlit session and does not send uploaded data to a paid API or external model. Cleaning operations are deterministic, previewed, and replayed locally without overwriting the upload. Dashboard layout JSON contains controls but no source rows; the optional standalone HTML export intentionally contains the filtered results needed to view its cards offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the query result.
+ODS does not send uploaded data to a paid API or external AI model. A local installation processes it in your local Streamlit process; the public demo first transfers it to a hosted Streamlit session. Cleaning operations are deterministic, previewed, and replayed without overwriting the source. Dashboard layout JSON contains controls but no source rows; standalone HTML intentionally embeds the filtered results needed to render offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the result.
+
+Read the full [Privacy Notice](PRIVACY.md) and [Security Policy](SECURITY.md) before using your own data.
 
 ## License
 

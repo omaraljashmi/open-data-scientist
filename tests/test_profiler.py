@@ -12,7 +12,7 @@ from ods.dashboard import (
     roles_from_mapping,
     suggest_dashboard,
 )
-from ods.loader import DatasetLoadError, load_dataset
+from ods.loader import DatasetLimits, DatasetLoadError, load_dataset
 from ods.profiler import profile_dataset
 from ods.reporting import build_markdown_report
 
@@ -33,6 +33,62 @@ class DatasetLoaderTests(unittest.TestCase):
     def test_rejects_unsupported_type(self) -> None:
         with self.assertRaises(DatasetLoadError):
             load_dataset("notes.txt", b"hello")
+
+    def test_rejects_empty_and_header_only_files(self) -> None:
+        with self.assertRaisesRegex(DatasetLoadError, "empty"):
+            load_dataset("empty.csv", b"")
+        with self.assertRaisesRegex(DatasetLoadError, "no data rows"):
+            load_dataset("header.csv", b"name,age\n")
+
+    def test_rejects_binary_content_disguised_as_csv(self) -> None:
+        with self.assertRaisesRegex(DatasetLoadError, "binary or UTF-16"):
+            load_dataset("binary.csv", b"name,age\nOmar,21\x00\xff")
+
+    def test_enforces_upload_row_and_column_limits(self) -> None:
+        content = b"name,age\nOmar,21\nAseel,22\n"
+        with self.assertRaisesRegex(DatasetLoadError, "per file"):
+            load_dataset(
+                "large.csv",
+                content,
+                limits=DatasetLimits(max_upload_bytes=8),
+            )
+        with self.assertRaisesRegex(DatasetLoadError, "2 rows"):
+            load_dataset(
+                "rows.csv",
+                content,
+                limits=DatasetLimits(max_rows=1),
+            )
+        with self.assertRaisesRegex(DatasetLoadError, "2 columns"):
+            load_dataset(
+                "columns.csv",
+                content,
+                limits=DatasetLimits(max_columns=1),
+            )
+
+    def test_rejects_damaged_and_overexpanded_xlsx_archives(self) -> None:
+        with self.assertRaisesRegex(DatasetLoadError, "damaged"):
+            load_dataset("damaged.xlsx", b"not a workbook")
+
+        source = pd.DataFrame({"value": [1, 2, 3]})
+        stream = BytesIO()
+        source.to_excel(stream, index=False)
+        with self.assertRaisesRegex(DatasetLoadError, "expands beyond"):
+            load_dataset(
+                "expanded.xlsx",
+                stream.getvalue(),
+                limits=DatasetLimits(max_excel_uncompressed_bytes=1),
+            )
+
+    def test_normalizes_excel_headers_to_unique_text(self) -> None:
+        source = pd.DataFrame([[1, 2]], columns=[100, 200])
+        stream = BytesIO()
+        source.to_excel(stream, index=False)
+        loaded = load_dataset("numeric-headers.xlsx", stream.getvalue())
+        self.assertEqual(loaded.columns.tolist(), ["100", "200"])
+
+    def test_limits_must_be_positive(self) -> None:
+        with self.assertRaises(ValueError):
+            DatasetLimits(max_rows=0)
 
 
 class DatasetProfilerTests(unittest.TestCase):
