@@ -4,6 +4,18 @@ All notable changes to Open Data Scientist are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Deterministic stable-release matrix covering seven representative CSV, XLSX, and legacy XLS inputs across the complete product workflow.
+- Nine expected-rejection cases for unsupported, empty, malformed, unsafe, ambiguous-header, and oversized files.
+- Privacy-safe GitHub bug-report, feature-request, and pull-request templates.
+- Stable-promotion checklist, draft `v1.0.0` notes, and validation documentation.
+
+### Fixed
+
+- Single-column CSV files no longer invent a delimiter from characters in their data rows.
+- Blank and duplicate CSV headers are rejected before pandas can silently create misleading column names.
+
 ## [1.0.0-rc.1] - 2026-07-14
 
 ### Added

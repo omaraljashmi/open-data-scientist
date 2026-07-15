@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from csv import Error as CsvError, Sniffer, reader
 from dataclasses import dataclass
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 
@@ -15,6 +16,7 @@ class DatasetLoadError(ValueError):
 
 
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls"}
+CSV_DELIMITERS = ",;\t|"
 
 
 @dataclass(frozen=True)
@@ -103,15 +105,65 @@ def _load_csv(content: bytes) -> pd.DataFrame:
     last_error: Exception | None = None
     for encoding in ("utf-8-sig", "utf-8", "latin-1"):
         try:
+            text = content.decode(encoding)
+        except UnicodeDecodeError as exc:
+            last_error = exc
+            continue
+
+        try:
+            delimiter = _detect_csv_delimiter(text)
+            _validate_csv_header(text, delimiter)
             return pd.read_csv(
-                BytesIO(content),
-                encoding=encoding,
-                sep=None,
+                StringIO(text),
+                sep=delimiter,
                 engine="python",
             )
-        except (UnicodeDecodeError, pd.errors.ParserError) as exc:
+        except DatasetLoadError:
+            raise
+        except (CsvError, pd.errors.ParserError) as exc:
             last_error = exc
+            break
     raise DatasetLoadError(f"Could not parse the CSV file: {last_error}")
+
+
+def _detect_csv_delimiter(text: str) -> str:
+    """Choose a common delimiter without splitting valid single-column files."""
+    header_line = next((line for line in text.splitlines() if line.strip()), "")
+    candidates = "".join(item for item in CSV_DELIMITERS if item in header_line)
+    if not candidates:
+        return ","
+    try:
+        return Sniffer().sniff(text[:65_536], delimiters=candidates).delimiter
+    except CsvError:
+        return candidates[0]
+
+
+def _validate_csv_header(text: str, delimiter: str) -> None:
+    """Reject blank or duplicate source headers before pandas can rename them."""
+    try:
+        rows = reader(StringIO(text), delimiter=delimiter)
+        header = next(
+            (
+                row
+                for row in rows
+                if row and not (len(row) == 1 and not row[0].strip())
+            ),
+            None,
+        )
+    except CsvError as exc:
+        raise DatasetLoadError(f"Could not parse the CSV header: {exc}") from exc
+
+    if header is None:
+        raise DatasetLoadError("The uploaded CSV does not contain a header row.")
+    normalized = [value.strip() for value in header]
+    if any(not value for value in normalized):
+        raise DatasetLoadError(
+            "Every CSV column needs a non-empty header before ODS can analyze it."
+        )
+    if len(normalized) != len(set(normalized)):
+        raise DatasetLoadError(
+            "CSV column headers must be unique. Rename duplicate headers and try again."
+        )
 
 
 def _validate_xlsx_archive(content: bytes, limits: DatasetLimits) -> None:

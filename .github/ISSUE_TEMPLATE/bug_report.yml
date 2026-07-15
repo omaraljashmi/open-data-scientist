@@ -1,0 +1,100 @@
+name: Bug report
+description: Report a reproducible problem without sharing private data.
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve Open Data Scientist.
+
+        **Do not attach confidential, regulated, personal, proprietary, or otherwise sensitive data.** Reproduce the problem with the bundled sample or a small synthetic file whenever possible.
+  - type: input
+    id: version
+    attributes:
+      label: ODS version
+      description: The version shown at the top of the app or the Git tag you installed.
+      placeholder: v1.0.0-rc.1
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Public Streamlit demo
+        - Local Python installation
+        - Local Docker container
+        - Other self-hosted deployment
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include operating system, browser, Python version, and installation method when relevant.
+      placeholder: macOS 15, Chrome, Python 3.12, requirements.lock
+    validations:
+      required: true
+  - type: dropdown
+    id: file_type
+    attributes:
+      label: Input type
+      options:
+        - CSV
+        - XLSX
+        - XLS
+        - Bundled sample dataset
+        - No uploaded file
+    validations:
+      required: true
+  - type: input
+    id: shape
+    attributes:
+      label: Approximate dataset shape
+      description: Share only row and column counts—not source values, names, or file contents.
+      placeholder: Approximately 25,000 rows × 18 columns
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: List the smallest sequence that consistently reproduces the problem.
+      placeholder: |
+        1. Load a synthetic CSV with...
+        2. Open Dashboard...
+        3. Select...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include the exact error text if it contains no private data.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Safe diagnostic evidence
+      description: Add sanitized logs, screenshots using synthetic data, or a minimal synthetic file description. Remove usernames, paths, tokens, and real records.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed private data, credentials, tokens, and identifying file paths.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I can reproduce this with synthetic or bundled sample data, or I explained why that is not possible.
+          required: true

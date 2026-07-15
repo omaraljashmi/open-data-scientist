@@ -100,6 +100,15 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Tests Python 3.11/3.12, Streamlit rendering, representative performance, and Docker health in CI
 - Prepares versioned release notes, changelog, security guidance, contributor documentation, and a release checklist
 
+### Milestone 6.2: Stable Release Validation
+
+- Runs seven synthetic CSV, XLSX, and XLS files through every product area
+- Verifies UTF-8 BOM, semicolon, pipe, quoted multiline, sparse, mixed-type, and single-column inputs
+- Requires nine unsafe or malformed input families to fail with understandable messages
+- Fixes single-column CSV detection and rejects blank or duplicate source headers before silent renaming
+- Adds privacy-safe bug reports, feature requests, and pull-request verification templates
+- Documents the stable-promotion evidence and keeps `v1.0.0` blocked until CI, Docker, and hosted checks pass
+
 ## Quick start
 
 The release candidate is verified on Python 3.11 and 3.12.
@@ -157,9 +166,10 @@ open-data-scientist/
 │   ├── test_dashboard_studio.py # Dashboard calculations, filters, config, and export tests
 │   ├── test_query_builder.py  # Query generation and security tests
 │   ├── test_sql_coach.py      # SQL safety, explanation, and plan tests
-│   └── test_performance.py    # Representative workflow performance gate
-├── scripts/                   # Reproducible benchmark utility
-├── docs/                      # Performance, release checklist, and release notes
+│   ├── test_performance.py    # Representative workflow performance gate
+│   └── test_validation_matrix.py # Multi-format end-to-end regression gate
+├── scripts/                   # Reproducible benchmark and validation utilities
+├── docs/                      # Performance, validation, checklists, and release notes
 ├── examples/                  # Safe sample data
 ├── requirements.txt           # Supported dependency ranges
 ├── requirements.lock          # Exact release-candidate environment
@@ -174,10 +184,11 @@ The test suite uses Python's standard library test runner:
 ```bash
 python -m compileall -q app.py ods tests scripts
 python -m unittest discover -s tests -v
+python -m scripts.validation_matrix
 python -m scripts.benchmark --rows 100000 --max-seconds 30
 ```
 
-GitHub Actions runs the suite on Python 3.11 and 3.12 and separately builds and health-checks the Docker image.
+GitHub Actions runs the suite and validation matrix on Python 3.11 and 3.12 and separately builds and health-checks the Docker image. See the [validation matrix](docs/VALIDATION.md) and [stable-release checklist](docs/STABLE_RELEASE_CHECKLIST.md).
 
 ## Roadmap
 
@@ -190,6 +201,7 @@ GitHub Actions runs the suite on Python 3.11 and 3.12 and separately builds and 
 - [x] Milestone 5 — Review-first Data Cleaning Studio with undo and recipes
 - [x] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
 - [x] Milestone 6.1 — Release candidate hardening, CI, privacy, guardrails, and Docker
+- [ ] Milestone 6.2 — Multi-format validation and stable `v1.0.0` promotion
 - [ ] Milestone 7 — Optional local LLM and agent activity log
 - [ ] Milestone 8 — CLI distribution, richer demo assets, and contributor expansion
 

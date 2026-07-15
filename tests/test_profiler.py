@@ -23,6 +23,31 @@ class DatasetLoaderTests(unittest.TestCase):
         self.assertEqual(frame.shape, (2, 2))
         self.assertEqual(frame.columns.tolist(), ["name", "age"])
 
+    def test_loads_single_column_csv_without_inventing_a_delimiter(self) -> None:
+        frame = load_dataset(
+            "statuses.csv",
+            b"status\n\"active, urgent\"\npaused\n",
+        )
+        self.assertEqual(frame.columns.tolist(), ["status"])
+        self.assertEqual(frame["status"].tolist(), ["active, urgent", "paused"])
+
+    def test_loads_utf8_bom_and_quoted_csv_values(self) -> None:
+        content = "name;city;note\nOmar;Montréal;\"hello; world\"\n".encode(
+            "utf-8-sig"
+        )
+        frame = load_dataset("international.csv", content)
+        self.assertEqual(frame.loc[0].to_dict(), {
+            "name": "Omar",
+            "city": "Montréal",
+            "note": "hello; world",
+        })
+
+    def test_rejects_blank_and_duplicate_source_headers(self) -> None:
+        with self.assertRaisesRegex(DatasetLoadError, "non-empty header"):
+            load_dataset("blank-header.csv", b"name,,age\nOmar,x,21\n")
+        with self.assertRaisesRegex(DatasetLoadError, "must be unique"):
+            load_dataset("duplicate-header.csv", b"name,name\nOmar,Ali\n")
+
     def test_loads_excel(self) -> None:
         source = pd.DataFrame({"value": [1, 2, 3]})
         stream = BytesIO()

@@ -39,6 +39,8 @@ jobs:
         run: python -m compileall -q app.py ods tests scripts
       - name: Run test suite
         run: python -m unittest discover -s tests -v
+      - name: Run multi-format validation matrix
+        run: python -m scripts.validation_matrix
       - name: Run release performance check
         run: python -m scripts.benchmark --rows 25000 --max-seconds 20
 
@@ -51,7 +53,35 @@ jobs:
       - name: Build image
         run: docker build --tag open-data-scientist:ci .
       - name: Start and verify app
+        shell: bash
         run: |
+          set -Eeuo pipefail
+
           docker run --detach --name ods-ci --publish 8501:8501 open-data-scientist:ci
-          curl --fail --silent --show-error --retry 15 --retry-delay 2 --retry-connrefused http://127.0.0.1:8501/_stcore/health
-          docker stop ods-ci
+
+          cleanup() {
+            status=$?
+            if (( status != 0 )); then
+              echo "::group::Container logs"
+              docker logs ods-ci || true
+              echo "::endgroup::"
+            fi
+            docker rm --force ods-ci >/dev/null 2>&1 || true
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --output /dev/null \
+            --connect-timeout 2 \
+            --max-time 5 \
+            --retry 30 \
+            --retry-delay 1 \
+            --retry-max-time 45 \
+            --retry-connrefused \
+            --retry-all-errors \
+            http://127.0.0.1:8501/_stcore/health
+          echo "Streamlit health check passed."

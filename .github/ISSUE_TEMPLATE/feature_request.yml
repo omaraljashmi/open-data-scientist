@@ -1,0 +1,68 @@
+name: Feature request
+description: Propose an outcome that keeps ODS explainable, local-first, and safe.
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the decision or workflow this feature should improve. Do not include private datasets, proprietary SQL, credentials, or personal information.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What is difficult today, and who experiences it?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Explain the user-visible result rather than prescribing a specific implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Synthetic example
+      description: Give a small fictional example showing how the feature would work.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Upload and profiling
+        - Data quality and cleaning
+        - Dashboard Studio
+        - Visual SQL
+        - SQL Coach
+        - Export and sharing
+        - Installation and deployment
+        - Documentation and contribution
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround or alternatives
+    validations:
+      required: false
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Privacy, safety, or compatibility considerations
+      description: Note whether this changes local processing, supported formats, resource use, SQL safety, or exported data.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: This request contains no confidential data, credentials, private SQL, or personal information.
+          required: true
+        - label: I searched existing issues and the roadmap for a similar request.
+          required: true
