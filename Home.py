@@ -62,18 +62,21 @@ with col_upload:
         ),
     )
 
+# One adaptive action slot: with no file it offers the sample; once a file
+# is staged it becomes the green submit button. Nothing is processed until
+# the user presses it (remove the staged file to get the sample back).
+use_sample = False
+submit_upload = False
 with col_sample:
     st.write("")
     st.write("")
-    use_sample = st.button("Try sample dataset", key="try-sample-dataset")
-
-# Uploading only stages the file; nothing is processed until the user submits.
-submit_upload = False
-if uploaded is not None:
-    st.caption(f"Ready: **{uploaded.name}** · {format_bytes(uploaded.size)}")
-    submit_upload = st.button(
-        "Analyze this file", type="primary", key="submit-upload"
-    )
+    if uploaded is None:
+        use_sample = st.button("Try sample dataset", key="try-sample-dataset")
+    else:
+        submit_upload = st.button(
+            "Analyze this file", type="primary", key="submit-upload"
+        )
+        st.caption(f"{uploaded.name} · {format_bytes(uploaded.size)}")
 
 # ── Resolve source ────────────────────────────────────────────────────────────
 raw_bytes: bytes | None = None
