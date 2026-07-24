@@ -20,10 +20,15 @@ from ods import (
     replay_cleaning_batches,
     suggest_cleaning_actions,
 )
-from app_shared import cleaning_history_fingerprint, get_cleaning_state
+from app_shared import cleaning_history_fingerprint, get_cleaning_state, render_page_header
 from hashlib import sha256
 
 st.set_page_config(page_title="ODS · Clean", layout="wide")
+render_page_header(
+    "Data Cleaning Studio",
+    "Review deterministic fixes before they touch the working dataset. Every operation shows "
+    "its evidence, requires an explicit preview and Apply, and stays reproducible from the source upload.",
+)
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 original_df  = st.session_state.get("original_df")
@@ -46,13 +51,6 @@ current_df = (
 )
 
 # ── Header metrics ────────────────────────────────────────────────────────────
-st.subheader("Data Cleaning Studio")
-st.caption(
-    "Review deterministic fixes before they touch the working dataset. "
-    "Every operation shows its evidence, requires an explicit preview and Apply, "
-    "and remains reproducible from the source upload."
-)
-
 history_key     = cleaning_history_fingerprint(batches)
 original_profile = profile_dataset(original_df)
 current_profile  = profile_dataset(current_df)

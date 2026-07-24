@@ -35,9 +35,15 @@ from app_shared import (
     default_aggregate_alias,
     filter_operator_labels,
     get_cleaning_state,
+    render_page_header,
 )
 
 st.set_page_config(page_title="ODS · Visual SQL", layout="wide")
+render_page_header(
+    "Visual SQL query builder",
+    "Choose columns, filters, summaries, and sorting with controls. ODS generates readable SQL "
+    "and runs it only against this uploaded dataset in memory.",
+)
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 original_df = st.session_state.get("original_df")
@@ -59,13 +65,6 @@ df          = (
 )
 scoped_key  = f"{dataset_key}-{history_key}"
 key_prefix  = f"visual-sql-{scoped_key}"
-
-# ── Page header ───────────────────────────────────────────────────────────────
-st.subheader("Visual SQL query builder")
-st.caption(
-    "Choose columns, filters, summaries, and sorting with controls. "
-    "ODS generates readable SQL and runs it only against this uploaded dataset in memory."
-)
 
 column_names = [str(c) for c in df.columns]
 if not column_names:

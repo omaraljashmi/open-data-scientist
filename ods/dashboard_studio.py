@@ -749,7 +749,7 @@ def _style_figure(
     y_title: str,
 ) -> None:
     figure.update_layout(
-        title=None,
+        title={"text": ""},
         height=370,
         margin={"l": 48, "r": 18, "t": 18, "b": 60},
         paper_bgcolor="#0b1b2d",

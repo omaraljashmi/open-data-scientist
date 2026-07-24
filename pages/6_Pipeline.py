@@ -27,9 +27,19 @@ from ods import (
     push_to_webhook,
     replay_cleaning_batches,
 )
-from app_shared import cleaning_history_fingerprint, get_cleaning_state, safe_download_stem
+from app_shared import (
+    cleaning_history_fingerprint,
+    get_cleaning_state,
+    render_page_header,
+    safe_download_stem,
+)
 
 st.set_page_config(page_title="ODS · Pipeline", layout="wide")
+render_page_header(
+    "Export pipeline",
+    "Send the current working dataset to a destination you own. ODS stays zero-cost: destinations "
+    "use your own free-tier account, credentials live only in this session, and no paid API is involved.",
+)
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 original_df = st.session_state.get("original_df")
@@ -50,14 +60,6 @@ df          = (
     else original_df.copy()
 )
 scoped_key = f"{dataset_key}-{history_key}"
-
-# ── Page header ───────────────────────────────────────────────────────────────
-st.subheader("Export pipeline")
-st.caption(
-    "Send the current working dataset to a destination you own. ODS stays zero-cost: "
-    "destinations use your own free-tier account, credentials live only in this session, "
-    "and no AI model or paid API is involved."
-)
 
 kind = st.radio(
     "Destination",

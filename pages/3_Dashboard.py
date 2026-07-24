@@ -41,10 +41,15 @@ from app_shared import (
     STUDIO_CARD_VALUES,
     cleaning_history_fingerprint,
     get_cleaning_state,
+    render_page_header,
     safe_download_stem,
 )
 
 st.set_page_config(page_title="ODS · Dashboard", layout="wide")
+render_page_header(
+    "Dashboard Studio",
+    "Compose KPI and chart cards with global filters — every result carries the exact audit table behind it.",
+)
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 original_df = st.session_state.get("original_df")
@@ -228,7 +233,6 @@ except DashboardStudioError as exc:
     filtered_df = current_df
 
 # ── Canvas header ─────────────────────────────────────────────────────────────
-st.subheader("Dashboard Studio")
 new_name = st.text_input(
     "Dashboard name",
     value=config.name,

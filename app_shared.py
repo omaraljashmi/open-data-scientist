@@ -6,6 +6,7 @@ module level from any page without triggering Streamlit side-effects.
 
 from __future__ import annotations
 
+from html import escape
 import re
 from hashlib import sha256
 from pathlib import Path
@@ -209,3 +210,72 @@ def safe_download_stem(value: str) -> str:
     """Cross-platform filename stem (≤60 chars, no special chars)."""
     normalized = re.sub(r"[^A-Za-z0-9_-]+", "-", value.strip()).strip("-")
     return (normalized or "ods-dashboard")[:60]
+
+# ── Shared visual theme ───────────────────────────────────────────────────────
+
+THEME_CSS = """
+<style>
+:root {
+  --ods-bg: #0a1220;
+  --ods-surface: #101a2b;
+  --ods-border: rgba(148, 184, 216, .14);
+  --ods-text: #e8f0f8;
+  --ods-muted: #8fa3b8;
+  --ods-accent: #56c9ff;
+}
+.stApp { background: var(--ods-bg); color: var(--ods-text); }
+[data-testid="stHeader"] { background: transparent; }
+[data-testid="stAppDeployButton"] { display: none; }
+[data-testid="stSidebar"] { background: #0d1524; border-right: 1px solid var(--ods-border); }
+h1, h2, h3 { letter-spacing: -.02em; }
+[data-testid="stMetric"] {
+  background: var(--ods-surface); border: 1px solid var(--ods-border);
+  border-radius: 12px; padding: .85rem 1rem;
+}
+[data-testid="stMetricLabel"] p {
+  color: var(--ods-muted); font-size: .72rem;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.stButton button, .stDownloadButton button { border-radius: 10px; }
+[data-testid="stExpander"] details {
+  border: 1px solid var(--ods-border); border-radius: 12px; background: var(--ods-surface);
+}
+[data-testid="stVerticalBlockBorderWrapper"] {
+  border-color: var(--ods-border) !important; border-radius: 14px; background: var(--ods-surface);
+}
+[data-testid="stFileUploader"] section {
+  background: var(--ods-surface); border: 1px dashed rgba(86, 201, 255, .35); border-radius: 12px;
+}
+hr { border-color: var(--ods-border); }
+.ods-kicker {
+  color: var(--ods-accent); font-size: .68rem; font-weight: 700;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.ods-page { padding-bottom: .7rem; border-bottom: 1px solid var(--ods-border); margin-bottom: 1.1rem; }
+.ods-page h1 { font-size: 1.9rem; margin: .15rem 0 .3rem; }
+.ods-page p { color: var(--ods-muted); max-width: 900px; margin: 0; line-height: 1.55; }
+.ods-hero h1 {
+  color: var(--ods-text);
+  font-size: clamp(2.2rem, 4.5vw, 3.4rem); line-height: 1.04;
+  letter-spacing: -.035em; margin: .4rem 0 .7rem;
+}
+/* Streamlit wraps heading text in its own span, so target the class, not bare spans */
+.ods-hero h1 .ods-accent { color: var(--ods-accent); }
+.ods-hero p { color: var(--ods-muted); max-width: 720px; font-size: 1.02rem; line-height: 1.65; }
+</style>
+"""
+
+
+def apply_theme() -> None:
+    """Inject the shared visual theme (call once near the top of each page)."""
+    st.markdown(THEME_CSS, unsafe_allow_html=True)
+
+
+def render_page_header(title: str, subtitle: str) -> None:
+    """Render the consistent page header: theme, kicker, title, muted subtitle."""
+    apply_theme()
+    st.markdown(
+        '<div class="ods-page"><div class="ods-kicker">Open Data Scientist</div>'
+        f"<h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>",
+        unsafe_allow_html=True,
+    )

@@ -18,9 +18,14 @@ from ods import (
     analyze_query,
     replay_cleaning_batches,
 )
-from app_shared import cleaning_history_fingerprint, get_cleaning_state
+from app_shared import cleaning_history_fingerprint, get_cleaning_state, render_page_header
 
 st.set_page_config(page_title="ODS · SQL Coach", layout="wide")
+render_page_header(
+    "SQL Coach",
+    "Understand a DuckDB query before running it. The coach parses the SQL locally, checks "
+    "correctness and performance risks, and asks DuckDB for the real physical plan.",
+)
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 original_df = st.session_state.get("original_df")
@@ -40,13 +45,6 @@ df          = (
     else original_df.copy()
 )
 scoped_key = f"{dataset_key}-{history_key}"
-
-# ── Page header ───────────────────────────────────────────────────────────────
-st.subheader("SQL Coach")
-st.caption(
-    "Understand a DuckDB query before running it. The coach parses the SQL locally, "
-    "checks correctness and performance risks, and asks DuckDB for the real physical plan."
-)
 
 # ── Query source ──────────────────────────────────────────────────────────────
 latest_sql   = st.session_state.get(f"sql-coach-latest-{scoped_key}")
