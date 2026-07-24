@@ -121,7 +121,7 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 
 ### Milestone 7.1: Structured Visual Theme + Optional AI Chart Advisor
 
-- Applies one shared visual theme across every page: a calm dark palette, consistent page headers with a kicker and muted subtitle, and card-styled metrics and expanders
+- Applies one shared visual theme across every page: a pitch-green and cream palette with a centered content column, consistent page headers with a kicker and muted subtitle, and card-styled metrics and expanders
 - Adds an **opt-in** AI chart advisor to the Profile page that asks an LLM to pick charts for the selected analysis goal — off by default and never required
 - Stays zero-cost by using only endpoints the user brings: a free-tier Google Gemini or Groq key, a local Ollama server, or any OpenAI-compatible URL
 - Sends **dataset metadata only** — column names, inferred roles, formats, unique and missing counts — never cell values, examples, or statistics

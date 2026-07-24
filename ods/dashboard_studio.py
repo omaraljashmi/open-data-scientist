@@ -487,22 +487,22 @@ def build_dashboard_html(df: pd.DataFrame, config: DashboardConfig) -> str:
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{safe_name}</title>
   <style>
-    :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
+    :root {{ color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
     * {{ box-sizing: border-box; }}
-    body {{ margin: 0; background: #07111f; color: #edf7ff; }}
+    body {{ margin: 0; background: #f7f3e7; color: #16281e; }}
     main {{ width: min(1480px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 64px; }}
     header {{ margin-bottom: 24px; }}
-    .kicker {{ color: #65dfff; letter-spacing: .12em; font-size: 12px; font-weight: 800; }}
+    .kicker {{ color: #15803d; letter-spacing: .12em; font-size: 12px; font-weight: 800; }}
     h1 {{ margin: 8px 0; font-size: clamp(32px, 5vw, 58px); letter-spacing: -.045em; }}
-    .meta, .empty {{ color: #91a9bd; }}
+    .meta, .empty {{ color: #5f6f5f; }}
     .grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }}
-    .card {{ min-width: 0; border: 1px solid rgba(101,209,255,.2); border-radius: 18px; background: #0b1b2d; padding: 20px; box-shadow: 0 18px 45px rgba(0,0,0,.16); }}
+    .card {{ min-width: 0; border: 1px solid rgba(20,83,45,.2); border-radius: 18px; background: #fffdf6; padding: 20px; box-shadow: 0 18px 45px rgba(22,40,30,.08); }}
     .card h2 {{ margin: 0 0 12px; font-size: 19px; }}
-    .kpi-value {{ color: #65dfff; font-size: clamp(42px, 7vw, 76px); font-weight: 800; letter-spacing: -.04em; padding: 20px 0 28px; }}
-    details {{ border-top: 1px solid rgba(145,169,189,.18); margin-top: 14px; padding-top: 12px; color: #b8cada; }}
-    summary {{ cursor: pointer; color: #65dfff; font-weight: 700; }}
+    .kpi-value {{ color: #15803d; font-size: clamp(42px, 7vw, 76px); font-weight: 800; letter-spacing: -.04em; padding: 20px 0 28px; }}
+    details {{ border-top: 1px solid rgba(20,83,45,.16); margin-top: 14px; padding-top: 12px; color: #47584c; }}
+    summary {{ cursor: pointer; color: #15803d; font-weight: 700; }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }}
-    th, td {{ border-bottom: 1px solid rgba(145,169,189,.16); padding: 7px; text-align: left; }}
+    th, td {{ border-bottom: 1px solid rgba(20,83,45,.15); padding: 7px; text-align: left; }}
     @media (max-width: 820px) {{ main {{ width: min(100% - 24px, 1480px); }} .grid {{ grid-template-columns: 1fr; }} }}
   </style>
 </head>
@@ -602,7 +602,7 @@ def _build_bar(df: pd.DataFrame, card: DashboardCard) -> CardResult:
         go.Bar(
             x=[escape(str(value)) for value in audit["category"]],
             y=audit["value"],
-            marker_color="#56c9ff",
+            marker_color="#15803d",
             hovertemplate="%{x}<br>%{y:,.4g}<extra></extra>",
         )
     )
@@ -648,8 +648,8 @@ def _build_line(df: pd.DataFrame, card: DashboardCard) -> CardResult:
             x=audit["period"],
             y=audit["value"],
             mode="lines+markers",
-            line={"color": "#56c9ff", "width": 3},
-            marker={"size": 7, "color": "#6ee7ff"},
+            line={"color": "#15803d", "width": 3},
+            marker={"size": 7, "color": "#1f9a4c"},
             hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.4g}<extra></extra>",
         )
     )
@@ -678,7 +678,7 @@ def _build_scatter(df: pd.DataFrame, card: DashboardCard) -> CardResult:
             x=audit[card.x],
             y=audit[card.y],
             mode="markers",
-            marker={"color": "#56c9ff", "size": 7, "opacity": 0.68},
+            marker={"color": "#15803d", "size": 7, "opacity": 0.68},
             hovertemplate="x=%{x:,.4g}<br>y=%{y:,.4g}<extra></extra>",
         )
     )
@@ -720,7 +720,7 @@ def _build_distribution(df: pd.DataFrame, card: DashboardCard) -> CardResult:
         go.Bar(
             x=audit["bin"],
             y=audit["count"],
-            marker_color="#56c9ff",
+            marker_color="#15803d",
             hovertemplate="%{x}<br>%{y:,} rows<extra></extra>",
         )
     )
@@ -752,20 +752,20 @@ def _style_figure(
         title={"text": ""},
         height=370,
         margin={"l": 48, "r": 18, "t": 18, "b": 60},
-        paper_bgcolor="#0b1b2d",
-        plot_bgcolor="#0b1b2d",
-        font={"color": "#dcecf7"},
+        paper_bgcolor="#fffdf6",
+        plot_bgcolor="#fffdf6",
+        font={"color": "#23392b"},
         xaxis={
             "title": escape(x_title),
-            "gridcolor": "rgba(145,169,189,.12)",
+            "gridcolor": "rgba(20,83,45,.12)",
             "automargin": True,
         },
         yaxis={
             "title": escape(y_title),
-            "gridcolor": "rgba(145,169,189,.14)",
+            "gridcolor": "rgba(20,83,45,.16)",
             "automargin": True,
         },
-        hoverlabel={"bgcolor": "#07111f", "font_color": "#edf7ff"},
+        hoverlabel={"bgcolor": "#16281e", "font_color": "#f7f3e7"},
         showlegend=False,
     )
 

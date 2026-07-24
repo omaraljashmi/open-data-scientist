@@ -216,17 +216,50 @@ def safe_download_stem(value: str) -> str:
 THEME_CSS = """
 <style>
 :root {
-  --ods-bg: #0a1220;
-  --ods-surface: #101a2b;
-  --ods-border: rgba(148, 184, 216, .14);
-  --ods-text: #e8f0f8;
-  --ods-muted: #8fa3b8;
-  --ods-accent: #56c9ff;
+  --ods-bg: #f7f3e7;
+  --ods-surface: #fffdf6;
+  --ods-border: rgba(20, 83, 45, .16);
+  --ods-text: #16281e;
+  --ods-muted: #5f6f5f;
+  --ods-accent: #15803d;
+  --ods-pitch: #123a26;
+  --ods-cream: #f3efdf;
 }
 .stApp { background: var(--ods-bg); color: var(--ods-text); }
 [data-testid="stHeader"] { background: transparent; }
 [data-testid="stAppDeployButton"] { display: none; }
-[data-testid="stSidebar"] { background: #0d1524; border-right: 1px solid var(--ods-border); }
+/* Central reading column, like a match-day programme page */
+[data-testid="stMainBlockContainer"], .stMain .block-container {
+  max-width: 1080px; margin: 0 auto;
+}
+/* Pitch-green sidebar with cream navigation */
+[data-testid="stSidebar"] { background: var(--ods-pitch); border-right: none; }
+[data-testid="stSidebar"] a { background: transparent !important; }
+[data-testid="stSidebar"] a span { color: var(--ods-cream); }
+[data-testid="stSidebar"] a:hover { background: rgba(243, 239, 223, .1) !important; }
+[data-testid="stSidebar"] a[aria-current="page"] {
+  background: rgba(243, 239, 223, .16) !important;
+}
+[data-testid="stSidebar"] a[aria-current="page"] span { color: #ffffff; }
+[data-testid="stSidebar"] button svg { color: var(--ods-cream); fill: var(--ods-cream); }
+/* Sidebar headings, widget labels, and captions must stay readable on green;
+   widget inputs keep their own cream background and dark text. */
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] :is(h1, h2, h3, h4, p) {
+  color: var(--ods-cream);
+}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { color: var(--ods-cream); }
+/* ...but button labels sit on cream chips, so they keep dark text */
+[data-testid="stSidebar"] button [data-testid="stMarkdownContainer"] p {
+  color: var(--ods-text);
+}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+  color: rgba(243, 239, 223, .75);
+}
+/* Streamlit's st.info is blue by default; tint it to the palette instead.
+   Success, warning, and error keep their universal colors. */
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) {
+  background: rgba(21, 128, 61, .09); color: #1d3b29; border-radius: 12px;
+}
 h1, h2, h3 { letter-spacing: -.02em; }
 [data-testid="stMetric"] {
   background: var(--ods-surface); border: 1px solid var(--ods-border);
@@ -236,6 +269,7 @@ h1, h2, h3 { letter-spacing: -.02em; }
   color: var(--ods-muted); font-size: .72rem;
   text-transform: uppercase; letter-spacing: .08em;
 }
+[data-testid="stMetricValue"] { color: var(--ods-accent); }
 .stButton button, .stDownloadButton button { border-radius: 10px; }
 [data-testid="stExpander"] details {
   border: 1px solid var(--ods-border); border-radius: 12px; background: var(--ods-surface);
@@ -244,16 +278,20 @@ h1, h2, h3 { letter-spacing: -.02em; }
   border-color: var(--ods-border) !important; border-radius: 14px; background: var(--ods-surface);
 }
 [data-testid="stFileUploader"] section {
-  background: var(--ods-surface); border: 1px dashed rgba(86, 201, 255, .35); border-radius: 12px;
+  background: var(--ods-surface); border: 1px dashed rgba(21, 128, 61, .45); border-radius: 12px;
 }
 hr { border-color: var(--ods-border); }
 .ods-kicker {
   color: var(--ods-accent); font-size: .68rem; font-weight: 700;
   letter-spacing: .16em; text-transform: uppercase;
 }
-.ods-page { padding-bottom: .7rem; border-bottom: 1px solid var(--ods-border); margin-bottom: 1.1rem; }
+.ods-page {
+  text-align: center; padding-bottom: .8rem;
+  border-bottom: 2px solid var(--ods-accent); margin-bottom: 1.2rem;
+}
 .ods-page h1 { font-size: 1.9rem; margin: .15rem 0 .3rem; }
-.ods-page p { color: var(--ods-muted); max-width: 900px; margin: 0; line-height: 1.55; }
+.ods-page p { color: var(--ods-muted); max-width: 780px; margin: 0 auto; line-height: 1.55; }
+.ods-hero { text-align: center; padding-top: .6rem; }
 .ods-hero h1 {
   color: var(--ods-text);
   font-size: clamp(2.2rem, 4.5vw, 3.4rem); line-height: 1.04;
@@ -261,7 +299,10 @@ hr { border-color: var(--ods-border); }
 }
 /* Streamlit wraps heading text in its own span, so target the class, not bare spans */
 .ods-hero h1 .ods-accent { color: var(--ods-accent); }
-.ods-hero p { color: var(--ods-muted); max-width: 720px; font-size: 1.02rem; line-height: 1.65; }
+.ods-hero p {
+  color: var(--ods-muted); max-width: 660px; margin: 0 auto;
+  font-size: 1.02rem; line-height: 1.65;
+}
 </style>
 """
 
