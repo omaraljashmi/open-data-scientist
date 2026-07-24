@@ -34,10 +34,10 @@ from app_shared import (
     safe_download_stem,
 )
 
-st.set_page_config(page_title="ODS · Pipeline", layout="wide")
+st.set_page_config(page_title="Data Insight Studio · Pipeline", layout="wide")
 render_page_header(
     "Export pipeline",
-    "Send the current working dataset to a destination you own. ODS stays zero-cost: destinations "
+    "Send the current working dataset to a destination you own. Data Insight Studio stays zero-cost: destinations "
     "use your own free-tier account, credentials live only in this session, and no paid API is involved.",
 )
 
@@ -124,7 +124,7 @@ if kind == "Airtable":
         )
     if base_id and table:
         config = PipelineConfig(
-            name=pipeline_name or "ods-pipeline",
+            name=pipeline_name or "data-insight-pipeline",
             kind="airtable",
             airtable=AirtableDestination(base_id=base_id, table=table, typecast=typecast),
             row_limit=row_limit,
@@ -152,7 +152,7 @@ else:
     )
     secret_header = columns[1].text_input(
         "Secret header name (optional)",
-        placeholder="X-ODS-Secret",
+        placeholder="X-DIS-Secret",
         key=f"pipeline-secret-header-{scoped_key}",
     ).strip()
     secret_input = columns[2].text_input(
@@ -166,7 +166,7 @@ else:
     )
     if url:
         config = PipelineConfig(
-            name=pipeline_name or "ods-pipeline",
+            name=pipeline_name or "data-insight-pipeline",
             kind="webhook",
             webhook=WebhookDestination(
                 url=url,

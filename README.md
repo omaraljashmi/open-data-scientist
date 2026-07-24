@@ -5,11 +5,11 @@
 [![CI](https://github.com/omaraljashmi/data-insight-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/omaraljashmi/data-insight-studio/actions/workflows/ci.yml)
 [![Stable release](https://img.shields.io/badge/release-v1.0.0-15803d)](docs/releases/v1.0.0.md)
 
-Data Insight Studio — formerly *Open Data Scientist*, still "ODS" for short throughout the app and docs — is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
+Data Insight Studio — formerly *Data Insight Studio* — is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
 **[Try the live demo →](https://data-insight-studio-omar.streamlit.app)** — click **Try sample dataset** for a no-upload walkthrough.
 
-> The public demo processes uploads in a hosted Streamlit session. Do not upload confidential, regulated, personal, or sensitive data; [run ODS locally](#quick-start) instead.
+> The public demo processes uploads in a hosted Streamlit session. Do not upload confidential, regulated, personal, or sensitive data; [run Data Insight Studio locally](#quick-start) instead.
 
 ## Current capabilities
 
@@ -210,6 +210,8 @@ data-insight-studio/
 └── LICENSE
 ```
 
+The core logic lives in the `ods/` package — the project's historical short name, kept so imports and saved pipeline files stay stable.
+
 ## Run the tests
 
 The test suite uses Python's standard library test runner:
@@ -241,7 +243,7 @@ GitHub Actions runs the suite and validation matrix on Python 3.11 and 3.12 and 
 
 ## Privacy
 
-ODS never sends uploaded data to a paid API, and never sends it to any AI model by default. The optional AI chart advisor is off until configured, talks only to an endpoint the user brings (a free tier or a local server), and receives dataset metadata only — column names, roles, and counts, never cell values. A local installation processes your data in your local Streamlit process; the public demo first transfers it to a hosted Streamlit session. Cleaning operations are deterministic, previewed, and replayed without overwriting the source. Dashboard layout JSON contains controls but no source rows; standalone HTML intentionally embeds the filtered results needed to render offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the result.
+Data Insight Studio never sends uploaded data to a paid API, and never sends it to any AI model by default. The optional AI chart advisor is off until configured, talks only to an endpoint the user brings (a free tier or a local server), and receives dataset metadata only — column names, roles, and counts, never cell values. A local installation processes your data in your local Streamlit process; the public demo first transfers it to a hosted Streamlit session. Cleaning operations are deterministic, previewed, and replayed without overwriting the source. Dashboard layout JSON contains controls but no source rows; standalone HTML intentionally embeds the filtered results needed to render offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the result.
 
 Read the full [Privacy Notice](PRIVACY.md) and [Security Policy](SECURITY.md) before using your own data.
 

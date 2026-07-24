@@ -20,7 +20,7 @@ from ods import (
 )
 from app_shared import cleaning_history_fingerprint, get_cleaning_state, render_page_header
 
-st.set_page_config(page_title="ODS · SQL Coach", layout="wide")
+st.set_page_config(page_title="Data Insight Studio · SQL Coach", layout="wide")
 render_page_header(
     "SQL Coach",
     "Understand a DuckDB query before running it. The coach parses the SQL locally, checks "

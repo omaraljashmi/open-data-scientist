@@ -1,4 +1,4 @@
-"""Shared constants, label maps, and helper functions used across all ODS pages.
+"""Shared constants, label maps, and helper functions used across all Data Insight Studio pages.
 
 Everything here is pure Python — no st.* calls — so it is safe to import at
 module level from any page without triggering Streamlit side-effects.
@@ -310,7 +310,7 @@ def render_page_header(title: str, subtitle: str) -> None:
     """Render the consistent page header: theme, kicker, title, muted subtitle."""
     apply_theme()
     st.markdown(
-        '<div class="ods-page"><div class="ods-kicker">Open Data Scientist</div>'
+        '<div class="ods-page"><div class="ods-kicker">Data Insight Studio</div>'
         f"<h1>{escape(title)}</h1><p>{escape(subtitle)}</p></div>",
         unsafe_allow_html=True,
     )

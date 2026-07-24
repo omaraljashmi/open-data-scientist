@@ -38,10 +38,10 @@ from app_shared import (
     render_page_header,
 )
 
-st.set_page_config(page_title="ODS · Visual SQL", layout="wide")
+st.set_page_config(page_title="Data Insight Studio · Visual SQL", layout="wide")
 render_page_header(
     "Visual SQL query builder",
-    "Choose columns, filters, summaries, and sorting with controls. ODS generates readable SQL "
+    "Choose columns, filters, summaries, and sorting with controls. Data Insight Studio generates readable SQL "
     "and runs it only against this uploaded dataset in memory.",
 )
 
@@ -237,7 +237,7 @@ if query is not None:
     with st.expander("Generated SQL", expanded=False):
         st.code(query.display_sql, language="sql")
         st.caption(
-            "ODS quotes column names and binds filter values separately before "
+            "Data Insight Studio quotes column names and binds filter values separately before "
             "execution. The displayed SQL is a readable copy for learning and reuse."
         )
 

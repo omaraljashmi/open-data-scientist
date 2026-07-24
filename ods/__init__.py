@@ -1,4 +1,4 @@
-"""Core analysis utilities for Open Data Scientist."""
+"""Core analysis utilities for Data Insight Studio."""
 
 from .version import __release__, __version__
 from .loader import DEFAULT_LIMITS, DatasetLimits, DatasetLoadError, load_dataset

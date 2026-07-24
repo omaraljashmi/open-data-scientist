@@ -61,7 +61,7 @@ def load_dataset(
         raise DatasetLoadError(
             f"{safe_name} is {_format_bytes(len(content))}; the default "
             f"limit is {_format_bytes(limits.max_upload_bytes)} per file. "
-            "Reduce the file or run ODS locally with a reviewed higher limit."
+            "Reduce the file or run Data Insight Studio locally with a reviewed higher limit."
         )
 
     try:
@@ -81,7 +81,7 @@ def load_dataset(
     except MemoryError as exc:
         raise DatasetLoadError(
             "The dataset exceeded available memory while being read. "
-            "Reduce its size or run ODS locally with more memory."
+            "Reduce its size or run Data Insight Studio locally with more memory."
         ) from exc
     except ImportError as exc:
         raise DatasetLoadError(
@@ -158,7 +158,7 @@ def _validate_csv_header(text: str, delimiter: str) -> None:
     normalized = [value.strip() for value in header]
     if any(not value for value in normalized):
         raise DatasetLoadError(
-            "Every CSV column needs a non-empty header before ODS can analyze it."
+            "Every CSV column needs a non-empty header before Data Insight Studio can analyze it."
         )
     if len(normalized) != len(set(normalized)):
         raise DatasetLoadError(
@@ -222,7 +222,7 @@ def _validate_dataframe(
     normalized_columns = [str(column).strip() for column in dataframe.columns]
     if any(not column for column in normalized_columns):
         raise DatasetLoadError(
-            "Every column needs a non-empty header before ODS can analyze it."
+            "Every column needs a non-empty header before Data Insight Studio can analyze it."
         )
     if len(normalized_columns) != len(set(normalized_columns)):
         raise DatasetLoadError(

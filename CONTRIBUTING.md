@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions that make ODS safer, clearer, faster, or easier to verify are welcome.
+Contributions that make Data Insight Studio safer, clearer, faster, or easier to verify are welcome.
 
 ## Development setup
 

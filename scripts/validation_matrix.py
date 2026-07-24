@@ -35,7 +35,7 @@ from ods import (
 
 @dataclass(frozen=True)
 class ValidationCase:
-    """One safe synthetic file expected to complete the full ODS workflow."""
+    """One safe synthetic file expected to complete the full Data Insight Studio workflow."""
 
     name: str
     file_name: str

@@ -1,4 +1,4 @@
-"""Open Data Scientist — landing page and session-state loader.
+"""Data Insight Studio — landing page and session-state loader.
 
 Runs inside the ``st.navigation`` router defined in ``app.py``, which owns
 ``st.set_page_config`` for every page.
@@ -29,7 +29,7 @@ st.markdown(
     <div class="ods-hero">
       <div class="ods-kicker">Open-source · Local-first · No paid API · {__release__}</div>
       <h1>Turn raw files into a <span class="ods-accent">clear data story.</span></h1>
-      <p>Upload a CSV or Excel file. ODS profiles, cleans, visualizes, queries, and exports
+      <p>Upload a CSV or Excel file. Data Insight Studio profiles, cleans, visualizes, queries, and exports
       the dataset with transparent local rules and downloadable evidence.</p>
     </div>
     """,
@@ -39,7 +39,7 @@ st.markdown(
 # ── Privacy notice ────────────────────────────────────────────────────────────
 with st.expander("Privacy notice", expanded=False):
     st.markdown(
-        "ODS never sends uploaded data to a paid API, and never sends it to any AI model "
+        "Data Insight Studio never sends uploaded data to a paid API, and never sends it to any AI model "
         "by default. The optional AI chart advisor on the Profile page is off until you "
         "configure it, uses only endpoints you bring (a free tier or a local server), and "
         "sends **dataset metadata only** — column names, roles, and counts — never cell values. "

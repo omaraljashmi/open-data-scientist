@@ -45,7 +45,7 @@ from app_shared import (
     safe_download_stem,
 )
 
-st.set_page_config(page_title="ODS · Dashboard", layout="wide")
+st.set_page_config(page_title="Data Insight Studio · Dashboard", layout="wide")
 render_page_header(
     "Dashboard Studio",
     "Compose KPI and chart cards with global filters — every result carries the exact audit table behind it.",

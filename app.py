@@ -1,4 +1,4 @@
-"""Open Data Scientist — entrypoint and page router.
+"""Data Insight Studio — entrypoint and page router.
 
 ``streamlit run app.py`` stays the single entrypoint (CI, Docker, and the
 README all reference it). This file only configures the app frame and routes
@@ -10,7 +10,7 @@ from __future__ import annotations
 import streamlit as st
 
 st.set_page_config(
-    page_title="Open Data Scientist",
+    page_title="Data Insight Studio",
     layout="wide",
     initial_sidebar_state="expanded",
 )

@@ -23,7 +23,7 @@ from ods import (
 from app_shared import cleaning_history_fingerprint, get_cleaning_state, render_page_header
 from hashlib import sha256
 
-st.set_page_config(page_title="ODS · Clean", layout="wide")
+st.set_page_config(page_title="Data Insight Studio · Clean", layout="wide")
 render_page_header(
     "Data Cleaning Studio",
     "Review deterministic fixes before they touch the working dataset. Every operation shows "

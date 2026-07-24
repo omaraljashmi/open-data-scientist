@@ -1,4 +1,4 @@
-"""Run a saved ODS export pipeline headlessly (cron, CI, or the command line).
+"""Run a saved Data Insight Studio export pipeline headlessly (cron, CI, or the command line).
 
 Credentials are read from environment variables only, so tokens never appear
 in pipeline files or shell history:

@@ -1,1 +1,1 @@
-"""Developer utilities for Open Data Scientist."""
+"""Developer utilities for Data Insight Studio."""

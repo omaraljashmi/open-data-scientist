@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Open Data Scientist are documented here.
+All notable changes to Data Insight Studio are documented here.
 
 ## [Unreleased]
 

@@ -6,13 +6,13 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for helping improve Open Data Scientist.
+        Thank you for helping improve Data Insight Studio.
 
         **Do not attach confidential, regulated, personal, proprietary, or otherwise sensitive data.** Reproduce the problem with the bundled sample or a small synthetic file whenever possible.
   - type: input
     id: version
     attributes:
-      label: ODS version
+      label: Data Insight Studio version
       description: The version shown at the top of the app or the Git tag you installed.
       placeholder: v1.0.0-rc.1
     validations:

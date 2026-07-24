@@ -1,6 +1,6 @@
 # Stable-release validation matrix
 
-Milestone 6.2 validates the complete Open Data Scientist workflow with deterministic synthetic files. The matrix is safe to run locally and in CI because it contains no real customer, employer, financial, or personal data.
+Milestone 6.2 validates the complete Data Insight Studio workflow with deterministic synthetic files. The matrix is safe to run locally and in CI because it contains no real customer, employer, financial, or personal data.
 
 ## What the matrix exercises
 

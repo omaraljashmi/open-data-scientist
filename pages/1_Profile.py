@@ -31,7 +31,7 @@ from app_shared import (
     render_page_header,
 )
 
-st.set_page_config(page_title="ODS · Profile", layout="wide")
+st.set_page_config(page_title="Data Insight Studio · Profile", layout="wide")
 render_page_header(
     "Data profile",
     "Explainable quality checks, column semantics, and a guided dashboard — computed locally.",
@@ -108,7 +108,7 @@ st.download_button(
 st.divider()
 st.subheader("Smart guided dashboard")
 st.caption(
-    "ODS infers a semantic role for every column. Correct any wrong assignments, "
+    "Data Insight Studio infers a semantic role for every column. Correct any wrong assignments, "
     "then pick a goal to get chart recommendations."
 )
 
@@ -122,7 +122,7 @@ role_df = st.data_editor(
             "Role":            ROLE_LABELS[s.role],
             "Format":          s.display_format,
             "Confidence":      f"{s.confidence:.0%}",
-            "Why ODS chose it": s.reason,
+            "Why Data Insight Studio chose it": s.reason,
         }
         for s in semantics
     ],
@@ -163,7 +163,7 @@ st.divider()
 with st.expander("AI chart advisor (optional)"):
     st.caption(
         "Off by default and never required. Bring your own free endpoint — a free-tier "
-        "Google Gemini or Groq key, or a local Ollama server. ODS sends **only dataset "
+        "Google Gemini or Groq key, or a local Ollama server. Data Insight Studio sends **only dataset "
         "metadata** (column names, roles, formats, unique and missing counts) — never any "
         "cell values — and validates every suggestion against your columns before charting."
     )
@@ -197,7 +197,7 @@ with st.expander("AI chart advisor (optional)"):
     if missing_key:
         st.caption(
             f"**{preset_name}** needs your free API key (press Enter after pasting it), "
-            "or switch to the Local Ollama preset. Everything else in ODS works without a key."
+            "or switch to the Local Ollama preset. Everything else in Data Insight Studio works without a key."
         )
 
     advisor_state_key = f"advisor-result-{scoped_key}"
@@ -220,7 +220,7 @@ with st.expander("AI chart advisor (optional)"):
     if advice:
         st.caption(
             "Advisor picks are validated against your columns and rendered with the same "
-            "local, auditable calculations as every other ODS chart."
+            "local, auditable calculations as every other Data Insight Studio chart."
         )
         for suggestion in advice:
             st.markdown(f"**{suggestion.title}** — {suggestion.explanation}")

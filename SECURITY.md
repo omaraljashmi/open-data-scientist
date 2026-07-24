@@ -8,7 +8,7 @@ Security fixes are prepared for the latest stable release and the latest code on
 
 Do not place secrets, private datasets, exploit details, or personal information in a public issue.
 
-Use GitHub's private vulnerability-reporting flow for this repository when it is available. If it is unavailable, email `omaraljashmi.uni@gmail.com` with the subject `ODS security report`. Include the affected version, impact, reproduction steps, and the smallest safe proof of concept. Do not attach real sensitive data.
+Use GitHub's private vulnerability-reporting flow for this repository when it is available. If it is unavailable, email `omaraljashmi.uni@gmail.com` with the subject `Data Insight Studio security report`. Include the affected version, impact, reproduction steps, and the smallest safe proof of concept. Do not attach real sensitive data.
 
 ## Security boundaries
 
@@ -19,4 +19,4 @@ Use GitHub's private vulnerability-reporting flow for this repository when it is
 - SQL Coach blocks writes, management statements, multiple statements, external readers, and unknown tables.
 - Dependency versions used for release verification are recorded in `requirements.lock`.
 
-These controls reduce risk but do not turn ODS into a hardened multi-tenant data platform. Deploy it only in an environment appropriate for the data being processed.
+These controls reduce risk but do not turn Data Insight Studio into a hardened multi-tenant data platform. Deploy it only in an environment appropriate for the data being processed.

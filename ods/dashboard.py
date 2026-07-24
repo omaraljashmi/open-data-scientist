@@ -170,7 +170,7 @@ def infer_column_semantics(df: pd.DataFrame) -> tuple[ColumnSemantic, ...]:
                 semantics.append(ColumnSemantic(name, "text", 0.82, "Text", "The values are mostly free-form or high-cardinality text."))
             continue
 
-        semantics.append(ColumnSemantic(name, "ignore", 0.55, "Unknown", "ODS could not safely assign an analytical role."))
+        semantics.append(ColumnSemantic(name, "ignore", 0.55, "Unknown", "Data Insight Studio could not safely assign an analytical role."))
 
     return tuple(semantics)
 

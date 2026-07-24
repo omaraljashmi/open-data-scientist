@@ -226,7 +226,7 @@ class WebhookPushTests(_StubServerMixin):
         destination = WebhookDestination(
             url=f"{self.base_url}/ingest".replace("127.0.0.1", "localhost"),
             batch_size=5,
-            secret_header="X-ODS-Secret",
+            secret_header="X-DIS-Secret",
         )
         records = [{"n": index} for index in range(12)]
         report = push_to_webhook(
@@ -240,7 +240,7 @@ class WebhookPushTests(_StubServerMixin):
         self.assertTrue(report.ok)
         seen = self.server.seen  # type: ignore[attr-defined]
         self.assertEqual(len(seen), 3)
-        self.assertEqual(seen[0]["headers"]["X-ODS-Secret"], "shh")
+        self.assertEqual(seen[0]["headers"]["X-DIS-Secret"], "shh")
         body = seen[0]["body"]
         self.assertEqual(body["source"], "open-data-scientist")
         self.assertEqual(body["pipeline"], "demo")
@@ -262,7 +262,7 @@ class WebhookPushTests(_StubServerMixin):
 
     def test_missing_secret_value_fails_fast(self) -> None:
         destination = WebhookDestination(
-            url=f"{self.base_url}/ingest", secret_header="X-ODS-Secret"
+            url=f"{self.base_url}/ingest", secret_header="X-DIS-Secret"
         )
         with self.assertRaises(PipelineError):
             push_to_webhook([{"n": 1}], destination, session=self.session, sleep=NO_SLEEP)

@@ -1,6 +1,6 @@
 """Optional AI chart advisor — zero-cost, bring-your-own free endpoint.
 
-Design rules, in line with the rest of Open Data Scientist:
+Design rules, in line with the rest of Data Insight Studio:
 
 - Off by default and never required: the deterministic recommendations in
   ``suggest_dashboard`` remain the primary path.
@@ -14,7 +14,7 @@ Design rules, in line with the rest of Open Data Scientist:
   the machine.
 - Trust boundary: the model only *picks chart parameters*. Every suggestion
   is validated against the real columns and roles, then rendered by the same
-  local, auditable calculations as any other ODS chart. Invalid suggestions
+  local, auditable calculations as any other Data Insight Studio chart. Invalid suggestions
   are dropped, never guessed at.
 """
 
@@ -157,7 +157,7 @@ def build_advisor_messages(brief: dict[str, Any], intent: str) -> list[dict[str,
         {
             "role": "system",
             "content": (
-                "You are a data-visualization advisor inside Open Data Scientist. "
+                "You are a data-visualization advisor inside Data Insight Studio. "
                 "Respond with a single JSON object matching response_format. "
                 "No prose, no markdown fences."
             ),

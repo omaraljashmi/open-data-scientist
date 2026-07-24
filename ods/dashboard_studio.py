@@ -1,4 +1,4 @@
-"""Local, auditable dashboard composition for Open Data Scientist."""
+"""Local, auditable dashboard composition for Data Insight Studio."""
 
 from __future__ import annotations
 
@@ -344,7 +344,7 @@ def dashboard_config_from_json(text: str, df: pd.DataFrame) -> DashboardConfig:
     if not isinstance(payload, dict):
         raise DashboardStudioError("Dashboard JSON must contain one object.")
     if payload.get("format") != "ods-dashboard" or payload.get("version") != 1:
-        raise DashboardStudioError("Only ODS dashboard format version 1 is supported.")
+        raise DashboardStudioError("Only Data Insight Studio dashboard format version 1 is supported.")
     if set(payload) - {"format", "version", "name", "cards", "filters"}:
         raise DashboardStudioError("The dashboard JSON contains unsupported fields.")
     raw_cards = payload.get("cards")
@@ -512,7 +512,7 @@ def build_dashboard_html(df: pd.DataFrame, config: DashboardConfig) -> str:
 </head>
 <body>
 <main>
-  <header><div class="kicker">OPEN DATA SCIENTIST · LOCAL EXPORT</div><h1>{safe_name}</h1>
+  <header><div class="kicker">DATA INSIGHT STUDIO · LOCAL EXPORT</div><h1>{safe_name}</h1>
   <p class="meta">{len(filtered):,} of {len(df):,} rows · {escape(filters)}</p></header>
   <section class="grid">{''.join(card_html)}</section>
 </main>

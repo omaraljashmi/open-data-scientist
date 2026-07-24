@@ -1,6 +1,6 @@
 """Zero-cost export pipeline: push the working dataset to user-owned destinations.
 
-Design rules, in line with the rest of Open Data Scientist:
+Design rules, in line with the rest of Data Insight Studio:
 
 - No paid API and no AI model. Destinations are services the user already
   owns (an Airtable base on the free plan, or any webhook endpoint), reached
@@ -318,7 +318,7 @@ def push_to_webhook(
     session: requests.Session | None = None,
     sleep: Callable[[float], None] = time.sleep,
     progress: ProgressCallback | None = None,
-    pipeline_name: str = "ods-pipeline",
+    pipeline_name: str = "data-insight-pipeline",
 ) -> PushReport:
     """POST records as JSON batches to any endpoint the user controls."""
     _validate_webhook(destination)
@@ -424,7 +424,7 @@ def pipeline_config_from_json(text: str) -> PipelineConfig:
     if not isinstance(payload, dict):
         raise PipelineError("Pipeline JSON must contain one object.")
     if payload.get("format") != "ods-pipeline" or payload.get("version") != 1:
-        raise PipelineError("Only ODS pipeline format version 1 is supported.")
+        raise PipelineError("Only Data Insight Studio pipeline format version 1 is supported.")
     if set(payload) - {"format", "version", "name", "kind", "row_limit", "airtable", "webhook"}:
         raise PipelineError("The pipeline JSON contains unsupported fields.")
     try:
