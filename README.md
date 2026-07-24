@@ -1,13 +1,13 @@
 # Open Data Scientist (ODS)
 
-[![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://open-data-scientist-omar.streamlit.app)
+[![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://data-insight-studio-omar.streamlit.app)
 [![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
 [![CI](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml/badge.svg)](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml)
 [![Stable release](https://img.shields.io/badge/release-v1.0.0-56c9ff)](docs/releases/v1.0.0.md)
 
 Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
-**[Try the live demo →](https://open-data-scientist-omar.streamlit.app)** — click **Try sample dataset** for a no-upload walkthrough.
+**[Try the live demo →](https://data-insight-studio-omar.streamlit.app)** — click **Try sample dataset** for a no-upload walkthrough.
 
 > The public demo processes uploads in a hosted Streamlit session. Do not upload confidential, regulated, personal, or sensitive data; [run ODS locally](#quick-start) instead.
 
