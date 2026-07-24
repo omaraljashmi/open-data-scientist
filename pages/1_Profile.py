@@ -191,8 +191,17 @@ with st.expander("AI chart advisor (optional)"):
     ).strip()
     st.caption("The key lives only in this session's memory — never stored or logged.")
 
+    # A keyed preset with no key would only bounce with a 401 — disable the
+    # button instead, and say exactly what to do about it.
+    missing_key = bool(preset["needs_key"]) and not advisor_key
+    if missing_key:
+        st.caption(
+            f"**{preset_name}** needs your free API key (press Enter after pasting it), "
+            "or switch to the Local Ollama preset. Everything else in ODS works without a key."
+        )
+
     advisor_state_key = f"advisor-result-{scoped_key}"
-    if st.button("Ask the advisor", key=f"advisor-run-{scoped_key}"):
+    if st.button("Ask the advisor", key=f"advisor-run-{scoped_key}", disabled=missing_key):
         try:
             with st.spinner("Asking the advisor…"):
                 advice = request_chart_advice(
