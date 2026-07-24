@@ -21,7 +21,7 @@ from ods import (
     profile_dataset,
     replay_cleaning_batches,
 )
-from app_shared import SAMPLE_DATA_PATH, apply_theme, get_cleaning_state
+from app_shared import SAMPLE_DATA_PATH, apply_theme, format_bytes, get_cleaning_state
 
 apply_theme()
 st.markdown(
@@ -67,6 +67,14 @@ with col_sample:
     st.write("")
     use_sample = st.button("Try sample dataset", key="try-sample-dataset")
 
+# Uploading only stages the file; nothing is processed until the user submits.
+submit_upload = False
+if uploaded is not None:
+    st.caption(f"Ready: **{uploaded.name}** · {format_bytes(uploaded.size)}")
+    submit_upload = st.button(
+        "Analyze this file", type="primary", key="submit-upload"
+    )
+
 # ── Resolve source ────────────────────────────────────────────────────────────
 raw_bytes: bytes | None = None
 filename: str | None = None
@@ -74,7 +82,7 @@ filename: str | None = None
 if use_sample and SAMPLE_DATA_PATH.exists():
     raw_bytes = SAMPLE_DATA_PATH.read_bytes()
     filename = SAMPLE_DATA_PATH.name
-elif uploaded is not None:
+elif submit_upload and uploaded is not None:
     raw_bytes = uploaded.read()
     filename = uploaded.name
 
@@ -126,4 +134,4 @@ if _profile is not None:
     )
     st.info("Use the sidebar to navigate: Profile · Clean · Dashboard · Visual SQL · SQL Coach")
 else:
-    st.info("Upload a file above or click **Try sample dataset** to begin.")
+    st.info("Upload a file and press **Analyze this file**, or click **Try sample dataset** to begin.")
