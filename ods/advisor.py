@@ -111,17 +111,32 @@ def build_advisor_messages(brief: dict[str, Any], intent: str) -> list[dict[str,
         "analysis_goal": intent,
         "dataset": brief,
         "chart_kinds": {
-            "category_count": "x = any column; counts rows per value of x.",
+            "category_count": "x = any column; bar of row counts per value of x.",
+            "pie": (
+                "x = a 'categorical' column with few unique values; donut of the share of "
+                "rows per value. Prefer this over category_count for part-of-whole questions."
+            ),
             "histogram": "x = a column with role 'numeric'; distribution of x.",
+            "box": (
+                "x = a 'numeric' column; optional y = a 'categorical' column to compare "
+                "the spread (min, quartiles, max) across groups."
+            ),
             "time_series": (
                 "x = a column with role 'datetime'; optional y = a 'numeric' column with an "
                 "aggregation and date_grain; y omitted means row counts over time."
+            ),
+            "time_area": (
+                "x = a 'datetime' column; optional y = a 'numeric' column. Cumulative "
+                "running-total area chart; pick it for growth-over-time questions."
             ),
             "category_aggregate": (
                 "x = a 'categorical' column, y = a 'numeric' column, plus an aggregation."
             ),
             "scatter": "x and y = two different 'numeric' columns.",
         },
+        "variety_hint": (
+            "Prefer a mix of different chart kinds over several charts of the same kind."
+        ),
         "aggregations": list(AGGREGATIONS),
         "date_grains": list(DATE_GRAINS),
         "response_format": {
@@ -289,10 +304,28 @@ def _validated_suggestion(
         return None
     if kind == "category_count":
         return ChartSuggestion("category_count", title, explanation, x, "count", confidence=0.75)
+    if kind == "pie":
+        if roles.get(x) != "categorical":
+            return None
+        return ChartSuggestion("pie", title, explanation, x, "count", confidence=0.75)
     if kind == "histogram":
         if roles.get(x) != "numeric":
             return None
         return ChartSuggestion("histogram", title, explanation, x, "count", confidence=0.75)
+    if kind == "box":
+        if roles.get(x) != "numeric":
+            return None
+        if y is not None and (not isinstance(y, str) or roles.get(y) != "categorical"):
+            y = None
+        return ChartSuggestion("box", title, explanation, x, y, confidence=0.75)
+    if kind == "time_area":
+        if roles.get(x) != "datetime":
+            return None
+        if y is not None and (not isinstance(y, str) or roles.get(y) != "numeric"):
+            y = None
+        return ChartSuggestion(
+            "time_area", title, explanation, x, y, "sum", date_grain, 0.75
+        )
     if kind == "time_series":
         if roles.get(x) != "datetime":
             return None

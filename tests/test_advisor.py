@@ -119,7 +119,7 @@ class AdvisorStubTests(unittest.TestCase):
                 "charts": [
                     {"kind": "scatter", "x": "segment", "y": "monthly_spend"},  # x not numeric
                     {"kind": "histogram", "x": "no_such_column"},
-                    {"kind": "pie", "x": "segment"},  # unsupported kind
+                    {"kind": "treemap", "x": "segment"},  # unsupported kind
                     {
                         "kind": "time_series",
                         "title": "Spend over time",
@@ -137,6 +137,35 @@ class AdvisorStubTests(unittest.TestCase):
         self.assertEqual(len(suggestions), 1)
         self.assertEqual(suggestions[0].kind, "time_series")
         self.assertEqual(suggestions[0].date_grain, "month")
+
+    def test_new_chart_kinds_validate_roles(self) -> None:
+        content = json.dumps(
+            {
+                "charts": [
+                    {"kind": "pie", "x": "monthly_spend"},  # pie needs a categorical x
+                    {"kind": "pie", "title": "Customer mix", "x": "segment"},
+                    {
+                        "kind": "box",
+                        "title": "Spend spread",
+                        "x": "monthly_spend",
+                        "y": "segment",
+                    },
+                    {
+                        "kind": "time_area",
+                        "title": "Growth",
+                        "x": "signup_date",
+                        "y": "monthly_spend",
+                    },
+                ]
+            }
+        )
+        self.server.responses = [(200, _chat_response(content))]  # type: ignore[attr-defined]
+        suggestions = self._ask(_sample_frame())
+        self.assertEqual(
+            [item.kind for item in suggestions], ["pie", "box", "time_area"]
+        )
+        self.assertEqual(suggestions[1].y, "segment")
+        self.assertEqual(suggestions[2].aggregation, "sum")
 
     def test_fenced_json_is_tolerated(self) -> None:
         fenced = "```json\n" + json.dumps(

@@ -19,7 +19,7 @@ from pandas.api.types import (
     is_numeric_dtype,
 )
 
-from ods import ChartSuggestion, CleaningAction, build_chart_data
+from ods import ChartSuggestion, CleaningAction, build_chart_data, build_chart_figure
 
 # ── File paths ────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,7 @@ SUMMARY_CALCULATIONS: dict[str, str] = {
 STUDIO_CARD_LABELS: dict[str, str] = {
     "kpi":          "KPI card",
     "bar":          "Bar chart",
+    "pie":          "Pie chart",
     "line":         "Line chart",
     "scatter":      "Scatter plot",
     "distribution": "Distribution",
@@ -143,21 +144,14 @@ def format_bytes(size: int) -> str:
 # ── Chart rendering ───────────────────────────────────────────────────────────
 
 def render_chart(dataframe: pd.DataFrame, suggestion: ChartSuggestion) -> None:
-    """Render one ChartSuggestion using Streamlit native charts + audit expander."""
+    """Render one ChartSuggestion as a themed Plotly figure + audit expander."""
     chart_data = build_chart_data(dataframe, suggestion)
-    if chart_data.empty:
+    figure = build_chart_figure(dataframe, suggestion, chart_data)
+    if chart_data.empty or figure is None:
         st.info("There is not enough usable data to draw this chart.")
         return
 
-    if suggestion.kind == "time_series":
-        value_col = suggestion.y or "count"
-        st.line_chart(chart_data.set_index(suggestion.x)[value_col], height=300)
-    elif suggestion.kind == "scatter" and suggestion.y:
-        st.scatter_chart(chart_data, x=suggestion.x, y=suggestion.y, height=300)
-    else:
-        value_col = suggestion.y or "count"
-        st.bar_chart(chart_data.set_index(suggestion.x)[value_col], height=300)
-
+    st.plotly_chart(figure, width="stretch", config={"displaylogo": False, "responsive": True})
     st.caption(f"Recommendation confidence: {suggestion.confidence:.0%}")
     with st.expander("Verify calculation"):
         st.dataframe(chart_data, width="stretch", hide_index=True)

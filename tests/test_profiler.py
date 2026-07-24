@@ -6,7 +6,9 @@ from io import BytesIO
 import pandas as pd
 
 from ods.dashboard import (
+    ChartSuggestion,
     build_chart_data,
+    build_chart_figure,
     infer_column_roles,
     infer_column_semantics,
     roles_from_mapping,
@@ -161,13 +163,54 @@ class DashboardRecommendationTests(unittest.TestCase):
         self.assertEqual(roles.numeric, ("monthly_spend", "satisfaction_score"))
         self.assertEqual(roles.datetime, ("last_contact",))
 
-    def test_recommends_a_small_standard_dashboard(self) -> None:
+    def test_recommends_a_varied_standard_dashboard(self) -> None:
         suggestions = suggest_dashboard(self.frame)
         self.assertEqual(len(suggestions), 4)
         self.assertEqual(
             [suggestion.kind for suggestion in suggestions],
-            ["missingness", "category_count", "histogram", "time_series"],
+            ["missingness", "pie", "time_series", "box"],
         )
+
+    def test_pie_share_data_is_exact_and_sums_to_one_hundred(self) -> None:
+        suggestion = ChartSuggestion("pie", "Share", "share", "segment", "count")
+        chart = build_chart_data(self.frame, suggestion)
+        shares = dict(zip(chart["segment"], chart["share_percent"], strict=True))
+        self.assertEqual(shares["Small Business"], 50.0)
+        self.assertEqual(shares["Enterprise"], 33.33)
+        self.assertEqual(shares["Consumer"], 16.67)
+        self.assertAlmostEqual(float(chart["share_percent"].sum()), 100.0, places=1)
+        figure = build_chart_figure(self.frame, suggestion, chart)
+        self.assertEqual(figure.data[0].type, "pie")
+
+    def test_pie_lumps_small_groups_into_other(self) -> None:
+        frame = pd.DataFrame({"city": [f"city-{index}" for index in range(9)] + ["city-0"]})
+        chart = build_chart_data(frame, ChartSuggestion("pie", "t", "e", "city", "count"))
+        self.assertEqual(list(chart["city"])[-1], "(other)")
+        self.assertEqual(int(chart["count"].sum()), 10)
+        self.assertAlmostEqual(float(chart["share_percent"].sum()), 100.0, places=1)
+
+    def test_box_summary_is_the_exact_five_number_summary(self) -> None:
+        suggestion = ChartSuggestion("box", "Spread", "spread", "monthly_spend", "segment")
+        chart = build_chart_data(self.frame, suggestion).set_index("segment")
+        small = chart.loc["Small Business"]
+        self.assertEqual(int(small["count"]), 3)
+        self.assertEqual(float(small["min"]), 850.0)
+        self.assertEqual(float(small["median"]), 920.0)
+        self.assertEqual(float(small["max"]), 920.0)
+        enterprise = chart.loc["Enterprise"]
+        self.assertEqual(float(enterprise["q1"]), 4425.0)
+        self.assertEqual(float(enterprise["q3"]), 4875.0)
+        self.assertNotIn("Consumer", chart.index)  # its only spend value is missing
+        figure = build_chart_figure(self.frame, suggestion)
+        self.assertEqual({trace.type for trace in figure.data}, {"box"})
+
+    def test_time_area_accumulates_the_running_total(self) -> None:
+        suggestions = suggest_dashboard(self.frame, intent="Trends over time")
+        area = [item for item in suggestions if item.kind == "time_area"][0]
+        chart = build_chart_data(self.frame, area)
+        self.assertEqual(list(chart.columns), ["last_contact", "monthly_spend", "cumulative"])
+        self.assertEqual(float(chart["cumulative"].iloc[-1]), 11990.0)
+        self.assertTrue(chart["cumulative"].is_monotonic_increasing)
 
     def test_explains_semantic_confidence_and_format(self) -> None:
         semantics = {item.column: item for item in infer_column_semantics(self.frame)}

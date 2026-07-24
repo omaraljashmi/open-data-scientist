@@ -112,9 +112,9 @@ numeric_cols = [
     if not is_bool_dtype(current_df[c])
     and pd.to_numeric(current_df[c], errors="coerce").notna().any()
 ]
-date_cols = [
-    s.column for s in infer_column_semantics(current_df) if s.role == "datetime"
-]
+semantics = infer_column_semantics(current_df)
+date_cols = [s.column for s in semantics if s.role == "datetime"]
+categorical_cols = [s.column for s in semantics if s.role == "categorical"]
 
 # ── Global filter sidebar ─────────────────────────────────────────────────────
 with st.sidebar:
@@ -347,6 +347,7 @@ if len(config.cards) < MAX_CARDS:
         available_kinds = ["kpi"]
         if all_cols:
             available_kinds.append("bar")
+            available_kinds.append("pie")
         if date_cols:
             available_kinds.append("line")
         if len(numeric_cols) >= 2:
@@ -371,6 +372,8 @@ if len(config.cards) < MAX_CARDS:
             card_kwargs: dict[str, object] = {}
             if new_kind == "bar":
                 card_kwargs["x"] = all_cols[0]
+            elif new_kind == "pie":
+                card_kwargs["x"] = categorical_cols[0] if categorical_cols else all_cols[0]
             elif new_kind == "line":
                 card_kwargs["x"] = date_cols[0]
             elif new_kind == "scatter":

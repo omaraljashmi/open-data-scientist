@@ -8,6 +8,7 @@ import re
 from typing import Literal, Mapping
 
 import pandas as pd
+import plotly.graph_objects as go
 from pandas.api.types import (
     is_bool_dtype,
     is_datetime64_any_dtype,
@@ -16,11 +17,19 @@ from pandas.api.types import (
     is_string_dtype,
 )
 
+from . import chart_theme
+
+MAX_PIE_SLICES = 7
+MAX_BOX_GROUPS = 8
+
 ChartKind = Literal[
     "missingness",
     "category_count",
+    "pie",
     "histogram",
+    "box",
     "time_series",
+    "time_area",
     "category_aggregate",
     "scatter",
 ]
@@ -239,6 +248,79 @@ def suggest_dashboard(
                 )
             )
 
+    def add_category_share(limit: int = 1) -> None:
+        """Pie for share-of-total; falls back to a count bar for many groups."""
+        added = 0
+        for category in roles.categorical:
+            if added >= limit:
+                break
+            unique = int(df[category].nunique(dropna=False))
+            if 2 <= unique <= MAX_PIE_SLICES + 1:
+                suggestions.append(
+                    ChartSuggestion(
+                        "pie",
+                        f"Share of records by {category}",
+                        f"Each slice is the exact percent of rows per {category} value; "
+                        f"beyond the top {MAX_PIE_SLICES} groups, the rest are combined into (other).",
+                        category,
+                        "count",
+                        confidence=0.93,
+                    )
+                )
+                added += 1
+        if added < limit:
+            add_category_counts(limit - added)
+
+    def add_spread(limit: int = 1) -> None:
+        """Box plots: five-number summaries, optionally split by a category."""
+        group = roles.categorical[0] if roles.categorical else None
+        for measure in roles.numeric[:limit]:
+            if group is not None:
+                title = f"Spread of {measure} by {group}"
+                explanation = (
+                    f"Five-number summary (min, quartiles, max) of non-null {measure} "
+                    f"for the {MAX_BOX_GROUPS} most common {group} groups."
+                )
+            else:
+                title = f"Spread of {measure}"
+                explanation = f"Five-number summary (min, quartiles, max) of all non-null {measure} values."
+            suggestions.append(
+                ChartSuggestion("box", title, explanation, measure, group, confidence=0.88)
+            )
+
+    def add_cumulative(limit: int = 1) -> None:
+        """Cumulative running-total area charts over time."""
+        if not roles.datetime:
+            return
+        date = roles.datetime[0]
+        if roles.numeric:
+            for measure in roles.numeric[:limit]:
+                suggestions.append(
+                    ChartSuggestion(
+                        "time_area",
+                        f"Cumulative total {measure} over time",
+                        f"Running total of non-null {measure}, summed by {date} at {date_grain} grain.",
+                        date,
+                        measure,
+                        "sum",
+                        date_grain,
+                        0.86,
+                    )
+                )
+        else:
+            suggestions.append(
+                ChartSuggestion(
+                    "time_area",
+                    "Cumulative record count over time",
+                    f"Running total of rows grouped by {date} at {date_grain} grain.",
+                    date,
+                    None,
+                    "count",
+                    date_grain,
+                    0.86,
+                )
+            )
+
     def add_distributions(limit: int = 1) -> None:
         for measure in roles.numeric[:limit]:
             suggestions.append(
@@ -321,25 +403,31 @@ def suggest_dashboard(
             )
 
     if intent == "Trends over time":
-        add_trends(3)
+        add_trends(2)
+        add_cumulative(1)
     elif intent == "Compare categories":
-        add_category_aggregates(3)
+        add_category_aggregates(2)
+        add_category_share(1)
         add_category_counts(1)
     elif intent == "Understand distributions":
-        add_distributions(4)
+        add_distributions(2)
+        add_spread(2)
     elif intent == "Explore relationships":
-        add_scatterplots(3)
+        add_scatterplots(2)
+        add_spread(1)
         add_category_aggregates(1)
     elif intent == "Review data quality":
         add_missingness()
         add_category_counts(2)
     else:
         add_missingness()
-        add_category_counts(1)
-        add_distributions(1)
+        add_category_share(1)
         add_trends(1)
+        add_spread(1)
         if len(suggestions) < max_charts:
             add_category_aggregates(1)
+        if len(suggestions) < max_charts:
+            add_distributions(1)
         if len(suggestions) < max_charts:
             add_scatterplots(1)
 
@@ -367,6 +455,54 @@ def build_chart_data(df: pd.DataFrame, suggestion: ChartSuggestion) -> pd.DataFr
         )
         return values.value_counts(dropna=False).head(15).rename("count").rename_axis(suggestion.x).reset_index()
 
+    if suggestion.kind == "pie":
+        values = (
+            df[suggestion.x]
+            .astype("string")
+            .str.strip()
+            .replace("", pd.NA)
+            .fillna("(missing)")
+        )
+        counts = values.value_counts(dropna=False)
+        total = int(counts.sum())
+        if total == 0:
+            return pd.DataFrame(columns=[suggestion.x, "count", "share_percent"])
+        top = counts.head(MAX_PIE_SLICES)
+        rest = int(counts.iloc[MAX_PIE_SLICES:].sum())
+        data = top.rename("count").rename_axis(suggestion.x).reset_index()
+        if rest > 0:
+            data.loc[len(data)] = ["(other)", rest]
+        data["share_percent"] = (data["count"] / total * 100).round(2)
+        return data
+
+    if suggestion.kind == "box":
+        values = pd.to_numeric(df[suggestion.x], errors="coerce")
+        if suggestion.y:
+            groups = df[suggestion.y].astype("string").str.strip().replace("", pd.NA).fillna("(missing)")
+            prepared = pd.DataFrame({"group": groups, "value": values}).dropna(subset=["value"])
+            keep = prepared["group"].value_counts().head(MAX_BOX_GROUPS).index
+            prepared = prepared[prepared["group"].isin(keep)]
+        else:
+            prepared = pd.DataFrame({"group": "all rows", "value": values}).dropna(subset=["value"])
+        if prepared.empty:
+            return pd.DataFrame(columns=["group", "count", "min", "q1", "median", "q3", "max"])
+        summary = (
+            prepared.groupby("group")["value"]
+            .agg(
+                count="count",
+                min="min",
+                q1=lambda s: s.quantile(0.25),
+                median="median",
+                q3=lambda s: s.quantile(0.75),
+                max="max",
+            )
+            .round(4)
+            .sort_values("count", ascending=False)
+            .reset_index()
+        )
+        summary.rename(columns={"group": suggestion.y or "group"}, inplace=True)
+        return summary
+
     if suggestion.kind == "histogram":
         values = pd.to_numeric(df[suggestion.x], errors="coerce").dropna()
         if values.empty:
@@ -386,6 +522,22 @@ def build_chart_data(df: pd.DataFrame, suggestion: ChartSuggestion) -> pd.DataFr
         prepared = pd.DataFrame({suggestion.x: grouped_dates}).dropna()
         return prepared.value_counts().rename("count").reset_index().sort_values(suggestion.x)
 
+    if suggestion.kind == "time_area":
+        dates = _to_datetime_series(df[suggestion.x])
+        grouped_dates = _group_dates(dates, suggestion.date_grain)
+        if suggestion.y:
+            values = pd.to_numeric(df[suggestion.y], errors="coerce")
+            prepared = pd.DataFrame({suggestion.x: grouped_dates, suggestion.y: values}).dropna()
+            data = _aggregate(prepared, suggestion.x, suggestion.y, "sum")
+            value_column = suggestion.y
+        else:
+            prepared = pd.DataFrame({suggestion.x: grouped_dates}).dropna()
+            data = prepared.value_counts().rename("count").reset_index()
+            value_column = "count"
+        data = data.sort_values(suggestion.x).reset_index(drop=True)
+        data["cumulative"] = data[value_column].cumsum()
+        return data
+
     if suggestion.kind == "category_aggregate" and suggestion.y:
         prepared = pd.DataFrame(
             {
@@ -402,6 +554,145 @@ def build_chart_data(df: pd.DataFrame, suggestion: ChartSuggestion) -> pd.DataFr
         return complete
 
     return pd.DataFrame()
+
+
+def build_chart_figure(
+    df: pd.DataFrame,
+    suggestion: ChartSuggestion,
+    chart_data: pd.DataFrame | None = None,
+) -> go.Figure | None:
+    """Build the themed Plotly figure for a suggestion from its audit data.
+
+    Every mark is drawn from the exact rows ``build_chart_data`` returns, so
+    the "Verify calculation" table always matches what is on screen.
+    """
+    data = chart_data if chart_data is not None else build_chart_data(df, suggestion)
+    if data.empty:
+        return None
+
+    figure = go.Figure()
+    if suggestion.kind == "missingness":
+        ordered = data.sort_values("missing_percent")
+        figure.add_trace(
+            go.Bar(
+                x=ordered["missing_percent"],
+                y=ordered["column"].astype(str),
+                orientation="h",
+                marker_color=chart_theme.ACCENT,
+                hovertemplate="%{y}<br>%{x:.2f}% missing<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(figure, x_title="Missing (%)", y_title="")
+
+    if suggestion.kind in {"category_count", "histogram"}:
+        value_column = "count"
+        figure.add_trace(
+            go.Bar(
+                x=data[suggestion.x].astype(str),
+                y=data[value_column],
+                marker_color=chart_theme.ACCENT,
+                hovertemplate="%{x}<br>%{y:,} rows<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(figure, x_title=suggestion.x, y_title="Row count")
+
+    if suggestion.kind == "pie":
+        figure.add_trace(
+            go.Pie(
+                labels=data[suggestion.x].astype(str),
+                values=data["count"],
+                hole=0.45,
+                sort=False,
+                marker={"colors": list(chart_theme.CATEGORICAL)},
+                textinfo="label+percent",
+                hovertemplate="%{label}<br>%{value:,} rows · %{percent}<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(figure, show_legend=False)
+
+    if suggestion.kind == "box":
+        group_column = suggestion.y or "group"
+        for index, row in data.iterrows():
+            color = chart_theme.CATEGORICAL[int(index) % len(chart_theme.CATEGORICAL)]
+            label = str(row[group_column])
+            figure.add_trace(
+                go.Box(
+                    name=label,
+                    x0=label,  # anchor each box on a labeled categorical axis
+                    lowerfence=[row["min"]],
+                    q1=[row["q1"]],
+                    median=[row["median"]],
+                    q3=[row["q3"]],
+                    upperfence=[row["max"]],
+                    marker_color=color,
+                    line={"color": color},
+                    hoverinfo="y+name",
+                )
+            )
+        return chart_theme.style_figure(
+            figure, x_title=suggestion.y or "", y_title=suggestion.x
+        )
+
+    if suggestion.kind == "time_series":
+        value_column = suggestion.y or "count"
+        figure.add_trace(
+            go.Scatter(
+                x=data[suggestion.x],
+                y=data[value_column],
+                mode="lines+markers",
+                line={"color": chart_theme.ACCENT, "width": 3},
+                marker={"size": 7, "color": chart_theme.ACCENT_SOFT},
+                hovertemplate="%{x|%Y-%m-%d}<br>%{y:,.4g}<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(figure, x_title=suggestion.x, y_title=value_column)
+
+    if suggestion.kind == "time_area":
+        figure.add_trace(
+            go.Scatter(
+                x=data[suggestion.x],
+                y=data["cumulative"],
+                mode="lines",
+                line={"color": chart_theme.ACCENT, "width": 3},
+                fill="tozeroy",
+                fillcolor=chart_theme.AREA_FILL,
+                hovertemplate="%{x|%Y-%m-%d}<br>cumulative %{y:,.4g}<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(
+            figure, x_title=suggestion.x, y_title=f"Cumulative {suggestion.y or 'count'}"
+        )
+
+    if suggestion.kind == "category_aggregate" and suggestion.y:
+        ordered = data.sort_values(suggestion.y)
+        figure.add_trace(
+            go.Bar(
+                x=ordered[suggestion.y],
+                y=ordered[suggestion.x].astype(str),
+                orientation="h",
+                marker_color=chart_theme.ACCENT,
+                hovertemplate="%{y}<br>%{x:,.4g}<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(
+            figure,
+            x_title=f"{_aggregation_label(suggestion.aggregation)} {suggestion.y}",
+            y_title="",
+        )
+
+    if suggestion.kind == "scatter" and suggestion.y:
+        figure.add_trace(
+            go.Scatter(
+                x=data[suggestion.x],
+                y=data[suggestion.y],
+                mode="markers",
+                marker={"color": chart_theme.ACCENT, "size": 7, "opacity": 0.65},
+                hovertemplate="x=%{x:,.4g}<br>y=%{y:,.4g}<extra></extra>",
+            )
+        )
+        return chart_theme.style_figure(figure, x_title=suggestion.x, y_title=suggestion.y)
+
+    return None
 
 
 def _missing_mask(series: pd.Series) -> pd.Series:

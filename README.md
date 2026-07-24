@@ -127,6 +127,7 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Sends **dataset metadata only** — column names, inferred roles, formats, unique and missing counts — never cell values, examples, or statistics
 - Treats the model as untrusted: every suggestion is validated against the real columns and roles, invalid picks are dropped, and surviving picks render through the same local, auditable chart calculations as the deterministic recommendations
 - Keeps the API key in session memory only; it is never stored, logged, or written to disk
+- Draws from a varied chart library — donut share, box-plot spread, cumulative area, line, horizontal and vertical bars, histogram, and scatter — used by the guided dashboard and the advisor, with pie cards also available in Dashboard Studio
 
 ## Quick start
 

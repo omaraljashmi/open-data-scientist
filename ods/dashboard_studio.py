@@ -16,10 +16,11 @@ from pandas.api.types import (
 )
 import plotly.graph_objects as go
 
+from . import chart_theme
 from .dashboard import infer_column_semantics
 
 
-CardKind = Literal["kpi", "bar", "line", "scatter", "distribution"]
+CardKind = Literal["kpi", "bar", "pie", "line", "scatter", "distribution"]
 Metric = Literal["row_count", "sum", "mean", "median", "distinct_count"]
 FilterKind = Literal["values", "range", "date_range"]
 DateGrain = Literal["day", "week", "month", "quarter", "year"]
@@ -33,6 +34,7 @@ MISSING_LABEL = "(missing)"
 CARD_KINDS: tuple[CardKind, ...] = (
     "kpi",
     "bar",
+    "pie",
     "line",
     "scatter",
     "distribution",
@@ -142,8 +144,8 @@ def default_dashboard_config(df: pd.DataFrame) -> DashboardConfig:
         cards.append(
             DashboardCard(
                 f"card-{next_index}",
-                "bar",
-                f"Rows by {categorical[0]}",
+                "pie",
+                f"Share of rows by {categorical[0]}",
                 x=categorical[0],
                 aggregation="row_count",
             )
@@ -284,6 +286,8 @@ def build_card_result(df: pd.DataFrame, card: DashboardCard) -> CardResult:
         return _build_kpi(df, card)
     if card.kind == "bar":
         return _build_bar(df, card)
+    if card.kind == "pie":
+        return _build_pie(df, card)
     if card.kind == "line":
         return _build_line(df, card)
     if card.kind == "scatter":
@@ -614,6 +618,77 @@ def _build_bar(df: pd.DataFrame, card: DashboardCard) -> CardResult:
     return CardResult(card, None, figure, audit, calculation)
 
 
+def _build_pie(df: pd.DataFrame, card: DashboardCard) -> CardResult:
+    assert card.x is not None
+    categories = _category_labels(df[card.x])
+    prepared = pd.DataFrame({"category": categories})
+    if card.aggregation == "row_count":
+        audit = prepared.groupby("category", as_index=False).size().rename(
+            columns={"size": "value"}
+        )
+        source = "row count"
+    elif card.aggregation == "distinct_count":
+        assert card.y is not None
+        prepared["raw_value"] = df[card.y]
+        audit = (
+            prepared.groupby("category", as_index=False)["raw_value"]
+            .nunique(dropna=True)
+            .rename(columns={"raw_value": "value"})
+        )
+        source = f"distinct count of {card.y}"
+    else:  # validation only lets additive aggregations reach a pie
+        assert card.y is not None
+        prepared["value"] = pd.to_numeric(df[card.y], errors="coerce")
+        prepared = prepared.dropna(subset=["value"])
+        grouped = prepared.groupby("category", as_index=False)["value"]
+        audit = _run_group_aggregation(grouped, "sum")
+        source = f"total of {card.y}"
+    audit = audit.sort_values(
+        ["value", "category"], ascending=[False, True], kind="stable"
+    ).reset_index(drop=True)
+
+    top = audit.head(card.top_n).copy()
+    hidden = len(audit) - len(top)
+    # Distinct counts are not additive across groups, so smaller groups are
+    # excluded rather than merged into a misleading "(other)" slice.
+    lumped = False
+    if hidden > 0 and card.aggregation in {"row_count", "sum"}:
+        rest = float(audit.iloc[card.top_n :]["value"].sum())
+        if rest > 0:
+            top.loc[len(top)] = {"category": "(other)", "value": rest}
+            lumped = True
+    total = float(top["value"].sum())
+    top["share_percent"] = (
+        (top["value"] / total * 100).round(2) if total else 0.0
+    )
+
+    figure = go.Figure(
+        go.Pie(
+            labels=[escape(str(value)) for value in top["category"]],
+            values=top["value"],
+            hole=0.45,
+            sort=False,
+            marker={"colors": list(chart_theme.CATEGORICAL)},
+            textinfo="label+percent",
+            hovertemplate="%{label}<br>%{value:,.4g} · %{percent}<extra></extra>",
+        )
+    )
+    _style_figure(figure, card, x_title="", y_title="")
+    if lumped:
+        tail_note = f"groups beyond the top {card.top_n} are combined into (other)"
+    elif hidden > 0:
+        tail_note = (
+            f"{hidden} smaller group(s) are excluded because {source} is not additive"
+        )
+    else:
+        tail_note = "all groups are shown"
+    calculation = (
+        f"Share of {source} grouped by {card.x} from {len(df):,} filtered rows; "
+        f"{tail_note}. Missing categories use {MISSING_LABEL}."
+    )
+    return CardResult(card, None, figure, top, calculation)
+
+
 def _build_line(df: pd.DataFrame, card: DashboardCard) -> CardResult:
     assert card.x is not None
     periods = _group_dates(_parse_dates(df[card.x]), card.date_grain)
@@ -804,7 +879,11 @@ def _validate_card(df: pd.DataFrame, card: DashboardCard) -> None:
         if card.metric in {"sum", "mean", "median"}:
             _require_numeric(df, card.column)
         return
-    if card.kind == "bar":
+    if card.kind in {"bar", "pie"}:
+        if card.kind == "pie" and card.aggregation in {"mean", "median"}:
+            raise DashboardStudioError(
+                "Pie charts need additive values: use row count, total, or distinct count."
+            )
         _require_column(df, card.x)
         if card.aggregation != "row_count":
             _require_column(df, card.y)

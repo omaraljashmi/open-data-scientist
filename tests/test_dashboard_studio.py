@@ -49,9 +49,36 @@ class DashboardStudioTests(unittest.TestCase):
 
     def test_builds_a_useful_four_card_default(self) -> None:
         config = default_dashboard_config(self.frame)
-        self.assertEqual([card.kind for card in config.cards], ["kpi", "kpi", "bar", "line"])
+        self.assertEqual([card.kind for card in config.cards], ["kpi", "kpi", "pie", "line"])
         self.assertEqual(config.cards[0].metric, "row_count")
         validate_dashboard_config(self.frame, config)
+
+    def test_pie_card_shares_are_exact(self) -> None:
+        card = DashboardCard("pie", "pie", "Share by segment", x="segment")
+        result = build_card_result(self.frame, card)
+        audit = result.audit_table
+        self.assertEqual(list(audit.columns), ["category", "value", "share_percent"])
+        shares = dict(zip(audit["category"], audit["share_percent"]))
+        self.assertEqual(shares, {"A": 50.0, "B": 37.5, "(missing)": 12.5})
+        self.assertAlmostEqual(float(audit["share_percent"].sum()), 100.0)
+        self.assertEqual(result.figure.data[0].type, "pie")
+
+    def test_pie_card_lumps_small_groups_into_other(self) -> None:
+        frame = pd.DataFrame(
+            {"city": ["a"] * 5 + ["b"] * 4 + ["c"] * 3 + ["d"] * 2 + ["e"] * 1}
+        )
+        card = DashboardCard("pie", "pie", "Cities", x="city", top_n=3)
+        audit = build_card_result(frame, card).audit_table
+        self.assertEqual(list(audit["category"]), ["a", "b", "c", "(other)"])
+        self.assertEqual(int(audit.loc[audit["category"] == "(other)", "value"].iloc[0]), 3)
+        self.assertAlmostEqual(float(audit["share_percent"].sum()), 100.0, places=1)
+
+    def test_pie_card_rejects_non_additive_aggregations(self) -> None:
+        card = DashboardCard(
+            "pie", "pie", "Average by segment", x="segment", y="revenue", aggregation="mean"
+        )
+        with self.assertRaises(DashboardStudioError):
+            build_card_result(self.frame, card)
 
     def test_calculates_all_kpi_metrics_exactly(self) -> None:
         cases = [
