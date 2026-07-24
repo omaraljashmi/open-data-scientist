@@ -1,11 +1,11 @@
-# Open Data Scientist (ODS)
+# Data Insight Studio
 
 [![Launch Live App](https://img.shields.io/badge/Launch_Live_App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://data-insight-studio-omar.streamlit.app)
-[![GitHub License](https://img.shields.io/github/license/omaraljashmi/open-data-scientist?style=for-the-badge)](LICENSE)
-[![CI](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml/badge.svg)](https://github.com/omaraljashmi/open-data-scientist/actions/workflows/ci.yml)
-[![Stable release](https://img.shields.io/badge/release-v1.0.0-56c9ff)](docs/releases/v1.0.0.md)
+[![GitHub License](https://img.shields.io/github/license/omaraljashmi/data-insight-studio?style=for-the-badge)](LICENSE)
+[![CI](https://github.com/omaraljashmi/data-insight-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/omaraljashmi/data-insight-studio/actions/workflows/ci.yml)
+[![Stable release](https://img.shields.io/badge/release-v1.0.0-15803d)](docs/releases/v1.0.0.md)
 
-Open Data Scientist is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
+Data Insight Studio — formerly *Open Data Scientist*, still "ODS" for short throughout the app and docs — is a local-first, open-source assistant that turns CSV and Excel files into understandable profiles, reviewable cleaning steps, guided and custom dashboards, visual queries, and SQL optimization guidance—without a paid API.
 
 **[Try the live demo →](https://data-insight-studio-omar.streamlit.app)** — click **Try sample dataset** for a no-upload walkthrough.
 
@@ -134,8 +134,8 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 The stable release is verified on Python 3.11 and 3.12.
 
 ```bash
-git clone https://github.com/omaraljashmi/open-data-scientist.git
-cd open-data-scientist
+git clone https://github.com/omaraljashmi/data-insight-studio.git
+cd data-insight-studio
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.lock
@@ -147,8 +147,8 @@ Then click **Try sample dataset** or upload a supported file. Use `requirements.
 ### Docker
 
 ```bash
-docker build -t open-data-scientist .
-docker run --rm -p 8501:8501 open-data-scientist
+docker build -t data-insight-studio .
+docker run --rm -p 8501:8501 data-insight-studio
 ```
 
 Open `http://localhost:8501`. The image includes a health check at `/_stcore/health`.
@@ -167,7 +167,7 @@ These are deliberate stable-release guardrails, not claims that every file at th
 ## Project structure
 
 ```text
-open-data-scientist/
+data-insight-studio/
 ├── app.py                     # Entrypoint: page config + st.navigation router
 ├── Home.py                    # Landing page and session-state loader
 ├── app_shared.py              # Shared theme, label maps, and page helpers
