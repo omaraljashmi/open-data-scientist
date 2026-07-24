@@ -299,6 +299,65 @@ def build_cleaning_recipe(
     return json.dumps(recipe, indent=2, ensure_ascii=False) + "\n"
 
 
+def cleaning_actions_from_recipe(text: str) -> tuple[tuple[CleaningAction, ...], ...]:
+    """Rebuild replayable cleaning batches from an exported recipe.
+
+    The recipe's flat operation list is replayed as one single-action batch
+    per step, preserving the exact recorded order. Recommendation text is not
+    stored in recipes, so replays carry an empty recommendation.
+    """
+    try:
+        payload = json.loads(text)
+    except (json.JSONDecodeError, UnicodeError) as exc:
+        raise CleaningError("This is not a valid cleaning recipe JSON file.") from exc
+    if not isinstance(payload, dict):
+        raise CleaningError("A cleaning recipe must contain one JSON object.")
+    if (
+        payload.get("format") != "open-data-scientist-cleaning-recipe"
+        or payload.get("version") != 1
+    ):
+        raise CleaningError("Only cleaning recipe format version 1 is supported.")
+    operations = payload.get("operations")
+    if not isinstance(operations, list):
+        raise CleaningError("The cleaning recipe operations must be a JSON array.")
+
+    batches: list[tuple[CleaningAction, ...]] = []
+    for index, step in enumerate(operations, start=1):
+        if not isinstance(step, dict):
+            raise CleaningError(f"Recipe operation {index} must be an object.")
+        kind = step.get("operation")
+        if kind not in ACTION_PRIORITY:
+            raise CleaningError(f"Recipe operation {index} has unsupported type: {kind!r}.")
+        confidence = step.get("confidence")
+        if confidence not in {"high", "medium", "low"}:
+            raise CleaningError(f"Recipe operation {index} has an invalid confidence level.")
+        parameters = step.get("parameters", {})
+        if not isinstance(parameters, dict):
+            raise CleaningError(f"Recipe operation {index} has invalid parameters.")
+        column = step.get("column")
+        if column is not None and not isinstance(column, str):
+            raise CleaningError(f"Recipe operation {index} has an invalid column name.")
+        batches.append(
+            (
+                CleaningAction(
+                    action_id=str(step.get("action_id") or f"{kind}:{column or 'dataset'}"),
+                    kind=kind,
+                    title=str(step.get("title") or kind),
+                    evidence=str(step.get("evidence") or ""),
+                    recommendation="",
+                    affected_rows=int(step.get("estimated_affected_rows") or 0),
+                    affected_percent=float(step.get("estimated_affected_percent") or 0.0),
+                    confidence=confidence,
+                    column=column,
+                    parameters=tuple(
+                        (str(key), str(value)) for key, value in sorted(parameters.items())
+                    ),
+                ),
+            )
+        )
+    return tuple(batches)
+
+
 def _string_actions(
     frame: pd.DataFrame,
     column: str,

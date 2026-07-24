@@ -109,6 +109,16 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Adds privacy-safe bug reports, feature requests, and pull-request verification templates
 - Records the verified Python 3.11/3.12 CI, Docker health, and hosted sample-walkthrough evidence
 
+### Milestone 7: Zero-Cost Export Pipeline
+
+- Sends the current working dataset (with all applied cleaning fixes) to a destination the user owns
+- Appends to an existing Airtable table on the free plan using the user's own personal access token, in API-sized batches with rate limiting and typecast
+- Posts JSON batches to any webhook endpoint the user controls, with an optional secret header
+- Shows the exact first request payload before anything is sent, and reports sent, failed, and retried batches afterwards
+- Keeps credentials in session memory or environment variables only; pipeline JSON stores the destination shape and never a token
+- Replays saved cleaning recipes headlessly, so `python -m scripts.run_pipeline` turns an upload plus two JSON files into a schedulable pipeline (cron or a free GitHub Actions schedule)
+- Uses no AI model and no paid API: destination mapping is deterministic and every service involved has a free tier
+
 ## Quick start
 
 The stable release is verified on Python 3.11 and 3.12.
