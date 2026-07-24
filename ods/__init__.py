@@ -11,6 +11,12 @@ from .cleaning import (
     replay_cleaning_batches,
     suggest_cleaning_actions,
 )
+from .advisor import (
+    ADVISOR_PRESETS,
+    AdvisorError,
+    dataset_brief,
+    request_chart_advice,
+)
 from .pipeline import (
     AIRTABLE_BATCH_SIZE,
     AIRTABLE_FREE_RECORD_LIMIT,
@@ -92,6 +98,10 @@ __all__ = [
     "DatasetLimits",
     "DatasetProfile",
     "DEFAULT_LIMITS",
+    "ADVISOR_PRESETS",
+    "AdvisorError",
+    "dataset_brief",
+    "request_chart_advice",
     "AIRTABLE_BATCH_SIZE",
     "AIRTABLE_FREE_RECORD_LIMIT",
     "AirtableDestination",

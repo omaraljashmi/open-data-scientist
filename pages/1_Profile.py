@@ -12,9 +12,12 @@ from __future__ import annotations
 import streamlit as st
 
 from ods import (
+    ADVISOR_PRESETS,
     INTENTS,                   # tuple[str] of intent names
+    AdvisorError,
     build_markdown_report,     # (file_name: str, profile) -> str
     infer_column_semantics,    # (df) -> tuple[ColumnSemantic, ...]
+    request_chart_advice,
     roles_from_mapping,        # (df, mapping: dict[str,str]) -> ColumnRoles
     suggest_dashboard,         # (df, *, roles, intent) -> tuple[ChartSuggestion, ...]
 )
@@ -25,9 +28,14 @@ from app_shared import (
     format_bytes,
     get_cleaning_state,
     render_chart,
+    render_page_header,
 )
 
 st.set_page_config(page_title="ODS · Profile", layout="wide")
+render_page_header(
+    "Data profile",
+    "Explainable quality checks, column semantics, and a guided dashboard — computed locally.",
+)
 
 # ── Guard: require a loaded dataset ──────────────────────────────────────────
 df          = st.session_state.get("current_df")
@@ -149,3 +157,62 @@ else:
         # ChartSuggestion has .title and .explanation (not .reason)
         st.markdown(f"**{suggestion.title}** — {suggestion.explanation}")
         render_chart(df, suggestion)
+
+# ── Optional AI chart advisor (zero-cost, bring your own endpoint) ────────────
+st.divider()
+with st.expander("AI chart advisor (optional)"):
+    st.caption(
+        "Off by default and never required. Bring your own free endpoint — a free-tier "
+        "Google Gemini or Groq key, or a local Ollama server. ODS sends **only dataset "
+        "metadata** (column names, roles, formats, unique and missing counts) — never any "
+        "cell values — and validates every suggestion against your columns before charting."
+    )
+    preset_name = st.selectbox(
+        "Provider preset",
+        list(ADVISOR_PRESETS),
+        key=f"advisor-preset-{scoped_key}",
+    )
+    preset = ADVISOR_PRESETS[preset_name]
+    advisor_columns = st.columns(2)
+    advisor_base = advisor_columns[0].text_input(
+        "Base URL (OpenAI-compatible)",
+        value=preset["base_url"],
+        key=f"advisor-base-{preset_name}-{scoped_key}",
+    ).strip()
+    advisor_model = advisor_columns[1].text_input(
+        "Model",
+        value=preset["model"],
+        key=f"advisor-model-{preset_name}-{scoped_key}",
+    ).strip()
+    advisor_key = st.text_input(
+        "API key" + ("" if preset["needs_key"] else " (not needed for a local server)"),
+        type="password",
+        key=f"advisor-key-{scoped_key}",
+    ).strip()
+    st.caption("The key lives only in this session's memory — never stored or logged.")
+
+    advisor_state_key = f"advisor-result-{scoped_key}"
+    if st.button("Ask the advisor", key=f"advisor-run-{scoped_key}"):
+        try:
+            with st.spinner("Asking the advisor…"):
+                advice = request_chart_advice(
+                    df,
+                    intent=intent,
+                    base_url=advisor_base,
+                    model=advisor_model,
+                    api_key=advisor_key or None,
+                )
+            st.session_state[advisor_state_key] = advice
+        except AdvisorError as exc:
+            st.session_state.pop(advisor_state_key, None)
+            st.error(str(exc))
+
+    advice = st.session_state.get(advisor_state_key)
+    if advice:
+        st.caption(
+            "Advisor picks are validated against your columns and rendered with the same "
+            "local, auditable calculations as every other ODS chart."
+        )
+        for suggestion in advice:
+            st.markdown(f"**{suggestion.title}** — {suggestion.explanation}")
+            render_chart(df, suggestion)

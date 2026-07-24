@@ -2,7 +2,7 @@
 
 Effective for Open Data Scientist `v1.0.0`.
 
-Open Data Scientist (ODS) is designed to analyze tabular data without sending it to a paid API or external AI model. The privacy boundary depends on where you run it.
+Open Data Scientist (ODS) is designed to analyze tabular data without sending it to a paid API, and without sending it to any AI model by default. Data leaves the application only through actions you explicitly configure and run: the export pipeline (which sends data rows to a destination you own) and the optional AI chart advisor (which sends dataset metadata only — never cell values — to an endpoint you bring). The privacy boundary depends on where you run it.
 
 ## Local installation
 
@@ -12,7 +12,14 @@ When ODS runs on your own computer:
 - profiling, cleaning, dashboards, DuckDB queries, and SQL analysis run in local memory;
 - the application does not include an application database or upload-storage service;
 - Streamlit usage telemetry is disabled in the included configuration; and
-- ODS does not call an external AI model or paid API.
+- ODS does not call an external AI model or paid API unless you explicitly configure and run one of the opt-in outbound features below.
+
+## Opt-in outbound features
+
+Two features send anything over the network, and both are off until you configure them:
+
+- **Export pipeline** — sends the current working dataset's rows to a destination you own (your Airtable base via your own personal access token, or a webhook endpoint you control). The exact first request payload is shown before anything is sent. Credentials live in session memory or environment variables only; pipeline JSON never contains them.
+- **AI chart advisor** — sends **dataset metadata only** (column names, inferred roles, display formats, unique and missing counts, row count) to an OpenAI-compatible endpoint you bring: a free-tier key or a local server. Cell values, example values, and statistics of values never leave the machine, and every suggestion the model returns is validated locally before it is used. The API key lives in session memory only.
 
 Use a local installation for confidential, regulated, personal, or otherwise sensitive data. Your operating system, browser, container platform, and network configuration remain outside ODS's control.
 

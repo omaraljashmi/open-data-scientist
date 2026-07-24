@@ -119,6 +119,15 @@ Open Data Scientist is a local-first, open-source assistant that turns CSV and E
 - Replays saved cleaning recipes headlessly, so `python -m scripts.run_pipeline` turns an upload plus two JSON files into a schedulable pipeline (cron or a free GitHub Actions schedule)
 - Uses no AI model and no paid API: destination mapping is deterministic and every service involved has a free tier
 
+### Milestone 7.1: Structured Visual Theme + Optional AI Chart Advisor
+
+- Applies one shared visual theme across every page: a calm dark palette, consistent page headers with a kicker and muted subtitle, and card-styled metrics and expanders
+- Adds an **opt-in** AI chart advisor to the Profile page that asks an LLM to pick charts for the selected analysis goal — off by default and never required
+- Stays zero-cost by using only endpoints the user brings: a free-tier Google Gemini or Groq key, a local Ollama server, or any OpenAI-compatible URL
+- Sends **dataset metadata only** — column names, inferred roles, formats, unique and missing counts — never cell values, examples, or statistics
+- Treats the model as untrusted: every suggestion is validated against the real columns and roles, invalid picks are dropped, and surviving picks render through the same local, auditable chart calculations as the deterministic recommendations
+- Keeps the API key in session memory only; it is never stored, logged, or written to disk
+
 ## Quick start
 
 The stable release is verified on Python 3.11 and 3.12.
@@ -158,7 +167,16 @@ These are deliberate stable-release guardrails, not claims that every file at th
 
 ```text
 open-data-scientist/
-├── app.py                     # Streamlit interface
+├── app.py                     # Entrypoint: page config + st.navigation router
+├── Home.py                    # Landing page and session-state loader
+├── app_shared.py              # Shared theme, label maps, and page helpers
+├── pages/
+│   ├── 1_Profile.py           # Profile, quality report, guided dashboard, AI advisor
+│   ├── 2_Clean.py             # Data Cleaning Studio
+│   ├── 3_Dashboard.py         # Dashboard Studio
+│   ├── 4_Visual_SQL.py        # Visual SQL query builder
+│   ├── 5_SQL_Coach.py         # SQL explanation and optimization
+│   └── 6_Pipeline.py          # Zero-cost export pipeline
 ├── ods/
 │   ├── loader.py              # CSV and Excel ingestion
 │   ├── cleaning.py            # Review-first cleaning recommendations and replay
@@ -167,6 +185,8 @@ open-data-scientist/
 │   ├── dashboard_studio.py    # Custom cards, global filters, validation, and HTML export
 │   ├── query_builder.py       # Safe visual SQL generation and execution
 │   ├── sql_coach.py           # Read-only SQL explanation and plan review
+│   ├── advisor.py             # Optional bring-your-own-endpoint AI chart advisor
+│   ├── pipeline.py            # Airtable and webhook export destinations
 │   ├── reporting.py           # Downloadable report generation
 │   └── version.py             # Release version constants
 ├── tests/
@@ -176,9 +196,11 @@ open-data-scientist/
 │   ├── test_dashboard_studio.py # Dashboard calculations, filters, config, and export tests
 │   ├── test_query_builder.py  # Query generation and security tests
 │   ├── test_sql_coach.py      # SQL safety, explanation, and plan tests
+│   ├── test_advisor.py        # Advisor privacy, validation, and endpoint-failure tests
+│   ├── test_pipeline.py       # Export batching, retries, and credential-safety tests
 │   ├── test_performance.py    # Representative workflow performance gate
 │   └── test_validation_matrix.py # Multi-format end-to-end regression gate
-├── scripts/                   # Reproducible benchmark and validation utilities
+├── scripts/                   # Benchmark, validation, and headless pipeline runners
 ├── docs/                      # Performance, validation, checklists, and release notes
 ├── examples/                  # Safe sample data
 ├── requirements.txt           # Supported dependency ranges
@@ -212,12 +234,13 @@ GitHub Actions runs the suite and validation matrix on Python 3.11 and 3.12 and 
 - [x] Milestone 6 — Custom dashboard composer and shareable dashboard configuration
 - [x] Milestone 6.1 — Release candidate hardening, CI, privacy, guardrails, and Docker
 - [x] Milestone 6.2 — Multi-format validation and stable `v1.0.0` promotion
-- [ ] Milestone 7 — Optional local LLM and agent activity log
-- [ ] Milestone 8 — CLI distribution, richer demo assets, and contributor expansion
+- [x] Milestone 7 — Zero-cost export pipeline (Airtable, webhook, headless runner)
+- [x] Milestone 7.1 — Structured visual theme and optional free AI chart advisor (bring-your-own endpoint, metadata only)
+- [ ] Milestone 8 — Agent activity log, CLI distribution, richer demo assets, and contributor expansion
 
 ## Privacy
 
-ODS does not send uploaded data to a paid API or external AI model. A local installation processes it in your local Streamlit process; the public demo first transfers it to a hosted Streamlit session. Cleaning operations are deterministic, previewed, and replayed without overwriting the source. Dashboard layout JSON contains controls but no source rows; standalone HTML intentionally embeds the filtered results needed to render offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the result.
+ODS never sends uploaded data to a paid API, and never sends it to any AI model by default. The optional AI chart advisor is off until configured, talks only to an endpoint the user brings (a free tier or a local server), and receives dataset metadata only — column names, roles, and counts, never cell values. A local installation processes your data in your local Streamlit process; the public demo first transfers it to a hosted Streamlit session. Cleaning operations are deterministic, previewed, and replayed without overwriting the source. Dashboard layout JSON contains controls but no source rows; standalone HTML intentionally embeds the filtered results needed to render offline. SQL Coach uses an isolated in-memory DuckDB connection with external access disabled and generates an `EXPLAIN` plan without executing the result.
 
 Read the full [Privacy Notice](PRIVACY.md) and [Security Policy](SECURITY.md) before using your own data.
 
